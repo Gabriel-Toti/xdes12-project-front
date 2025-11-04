@@ -1,25 +1,40 @@
 {
-  "name": "casar-front",
-  "version": "0.1.0",
-  "private": true,
+  "name": "xdes12-project-front",
+  "version": "1.0.0",
+  "description": "Resumo rápido",
+  "main": "index.js",
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:selenium": "jest --runInBand --config=jest.config.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gabriel-Toti/xdes12-project-front.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Gabriel-Toti/xdes12-project-front/issues"
+  },
+  "homepage": "https://github.com/Gabriel-Toti/xdes12-project-front#readme",
   "dependencies": {
-    "axios": "^1.11.0",
-    "next": "15.4.7",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@types/jest": "^30.0.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "chromedriver": "^142.0.0",
+    "jest": "^30.2.0",
+    "selenium-webdriver": "^4.38.0",
+    "ts-jest": "^29.4.5",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
   }
 }
