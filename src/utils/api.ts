@@ -5,3 +5,13 @@ const api = axios.create({
 });
 
 export { api };
+
+export const authApi = {
+  login: async (data: {
+    email: string;
+    senha: string;
+  }) => {
+    const response = await api.post(`${apiConfig.endpoints.auth}/login`, data);
+    return response.data;
+  },
+};
