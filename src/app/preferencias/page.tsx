@@ -9,13 +9,17 @@ export default function Preferencias() {
   const [alcool, setAlcool] = useState("");
   const [festas, setFestas] = useState("");
   const [pets, setPets] = useState("");
-  const [convivencia, setConvivencia] = useState("");
-  const [hobbies, setHobbies] = useState("");
+  const [convivencia, setConvivencia] = useState<string[]>([]);
+  const [hobbies, setHobbies] = useState<string[]>([]);
   const [tipoMoradia, setTipoMoradia] = useState("");
-  const [valorMoradia, setValorMoradia] = useState("");
+  const [valorMoradia, setValorMoradia] = useState<number | "">("");
   const [generoColega, setGeneroColega] = useState("");
-  const [localizacao, setLocalizacao] = useState("");
-  const [horariosSilencio, setHorariosSilencio] = useState("");
+  const [localizacao, setLocalizacao] = useState<number | "">("");
+  const [horariosSilencioDays, setHorariosSilencioDays] = useState<string[]>(
+    []
+  );
+  const [horarioInicio, setHorarioInicio] = useState("");
+  const [horarioFim, setHorarioFim] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -26,12 +30,15 @@ export default function Preferencias() {
       !alcool ||
       !festas ||
       !pets ||
-      !convivencia ||
+      convivencia.length === 0 ||
+      hobbies.length === 0 ||
       !tipoMoradia ||
-      !valorMoradia ||
+      valorMoradia === "" ||
       !generoColega ||
-      !localizacao ||
-      !horariosSilencio
+      localizacao === "" ||
+      horariosSilencioDays.length === 0 ||
+      !horarioInicio ||
+      !horarioFim
     ) {
       setError("Por favor, preencha todos os campos obrigatórios");
       return false;
@@ -81,11 +88,10 @@ export default function Preferencias() {
                 required
               >
                 <option value="" disabled>
-                  Selecionar uso de álcool
+                  Selecionar opção
                 </option>
-                <option value="nunca">Nunca</option>
-                <option value="socialmente">Socialmente</option>
-                <option value="regularmente">Regularmente</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
               </select>
             </div>
 
@@ -101,7 +107,6 @@ export default function Preferencias() {
                   Selecionar frequência
                 </option>
                 <option value="nunca">Nunca</option>
-                <option value="raramente">Raramente</option>
                 <option value="as_vezes">Às vezes</option>
                 <option value="frequentemente">Frequentemente</option>
               </select>
@@ -120,40 +125,81 @@ export default function Preferencias() {
                 <option value="" disabled>
                   Selecionar opção
                 </option>
-                <option value="nao">Não tem / não aceita</option>
-                <option value="tem">Tem pets</option>
-                <option value="aceita">Aceita pets</option>
+                <option value="aceita">Aceita</option>
+                <option value="nao_aceita">Não aceita</option>
+                <option value="possui">Possui</option>
               </select>
             </div>
 
             <div className="form-group">
               <label className="form-label">Estilo de convivência</label>
-              <select
-                className="form-select"
-                value={convivencia}
-                onChange={(e) => setConvivencia(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Selecionar estilo
-                </option>
-                <option value="organizado">Organizado</option>
-                <option value="relaxado">Relaxado</option>
-                <option value="colaborativo">
-                  Colaborativo / Compartilha tarefas
-                </option>
-              </select>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  { k: "tranquilo", label: "Tranquilo" },
+                  { k: "festeiro", label: "Festeiro" },
+                  { k: "organizado", label: "Organizado" },
+                  { k: "estudioso", label: "Estudioso" },
+                ].map((opt) => (
+                  <label key={opt.k} style={{ fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      value={opt.k}
+                      checked={convivencia.includes(opt.k)}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setConvivencia((prev) =>
+                          prev.includes(v)
+                            ? prev.filter((x) => x !== v)
+                            : [...prev, v]
+                        );
+                      }}
+                      style={{ marginRight: 8 }}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
 
           <div className="form-group">
-            <label className="form-label">Hobbies / Interesses</label>
-            <textarea
-              className="form-textarea"
-              value={hobbies}
-              onChange={(e) => setHobbies(e.target.value)}
-              placeholder="Descreva seus hobbies e interesses"
-            />
+            <label className="form-label">
+              Hobbies / Interesses (marque os aplicáveis)
+            </label>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))",
+                gap: 8,
+              }}
+            >
+              {[
+                { k: "esportes", label: "Esportes" },
+                { k: "jogos", label: "Jogos" },
+                { k: "animes", label: "Animes" },
+                { k: "leitura", label: "Leitura" },
+                { k: "cinema", label: "Cinema" },
+                { k: "musica", label: "Música" },
+              ].map((opt) => (
+                <label key={opt.k} style={{ fontWeight: 500 }}>
+                  <input
+                    type="checkbox"
+                    value={opt.k}
+                    checked={hobbies.includes(opt.k)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setHobbies((prev) =>
+                        prev.includes(v)
+                          ? prev.filter((x) => x !== v)
+                          : [...prev, v]
+                      );
+                    }}
+                    style={{ marginRight: 8 }}
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="form-row">
@@ -168,29 +214,30 @@ export default function Preferencias() {
                 <option value="" disabled>
                   Selecionar tipo de moradia
                 </option>
+                <option value="pensao">Pensão</option>
                 <option value="apartamento">Apartamento</option>
                 <option value="casa">Casa</option>
-                <option value="quitinete">Quitinete / Estúdio</option>
                 <option value="republica">República</option>
               </select>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Valor de moradia (mensal)</label>
-              <select
-                className="form-select"
+              <label className="form-label">
+                Valor máximo de moradia (R$ / mês)
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="form-input"
                 value={valorMoradia}
-                onChange={(e) => setValorMoradia(e.target.value)}
+                onChange={(e) =>
+                  setValorMoradia(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+                placeholder="Valor máximo que você paga (ex: 1500)"
                 required
-              >
-                <option value="" disabled>
-                  Selecionar faixa de valor
-                </option>
-                <option value="0-800">Até R$800</option>
-                <option value="800-1500">R$800 - R$1.500</option>
-                <option value="1500-3000">R$1.500 - R$3.000</option>
-                <option value="3000+">Acima de R$3.000</option>
-              </select>
+              />
             </div>
           </div>
 
@@ -214,33 +261,79 @@ export default function Preferencias() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Localização</label>
+              <label className="form-label">Localização (raio em km)</label>
               <input
-                type="text"
+                type="number"
+                min={0}
+                step={0.1}
                 className="form-input"
                 value={localizacao}
-                onChange={(e) => setLocalizacao(e.target.value)}
-                placeholder="Ex: Zona Sul, Centro, Bairro X..."
+                onChange={(e) =>
+                  setLocalizacao(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
+                placeholder="Raio máximo em km (ex: 5)"
                 required
               />
             </div>
           </div>
-
           <div className="form-group">
             <label className="form-label">Horários de Silêncio</label>
-            <select
-              className="form-select"
-              value={horariosSilencio}
-              onChange={(e) => setHorariosSilencio(e.target.value)}
-              required
-            >
-              <option value="" disabled>
-                Selecionar horário de silêncio
-              </option>
-              <option value="22-7">22:00 - 07:00</option>
-              <option value="23-8">23:00 - 08:00</option>
-              <option value="0-0">Sem horário específico</option>
-            </select>
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                {[
+                  ["segunda", "Seg"],
+                  ["terca", "Ter"],
+                  ["quarta", "Qua"],
+                  ["quinta", "Qui"],
+                  ["sexta", "Sex"],
+                  ["sabado", "Sáb"],
+                  ["domingo", "Dom"],
+                ].map((d) => (
+                  <label key={d[0]} style={{ fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      value={d[0]}
+                      checked={horariosSilencioDays.includes(d[0])}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setHorariosSilencioDays((prev) =>
+                          prev.includes(v)
+                            ? prev.filter((x) => x !== v)
+                            : [...prev, v]
+                        );
+                      }}
+                      style={{ marginRight: 6 }}
+                    />
+                    {d[1]}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label className="form-label">Início</label>
+                <input
+                  type="time"
+                  className="form-input"
+                  value={horarioInicio}
+                  onChange={(e) => setHorarioInicio(e.target.value)}
+                  required
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="form-label">Fim</label>
+                <input
+                  type="time"
+                  className="form-input"
+                  value={horarioFim}
+                  onChange={(e) => setHorarioFim(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           {error && <div className="error-message">{error}</div>}
