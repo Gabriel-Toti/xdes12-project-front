@@ -75,8 +75,9 @@ export default function Cadastro() {
         email: email,
         password: senha,
         phone: celular,
-        gender: genero,
-        cpf: cpf
+        gender: genero.charAt(0).toUpperCase(),
+        cpf: cpf,
+        birthdate: dataNascimento,
       });
 
       setSuccess(
@@ -163,9 +164,9 @@ export default function Cadastro() {
                 <option value="" disabled>
                   Selecione o gênero
                 </option>
-                <option value="masculino">Masculino</option>
-                <option value="feminino">Feminino</option>
-                <option value="outro">Outro</option>
+                <option value="M">Masculino</option>
+                <option value="F">Feminino</option>
+                <option value="O">Outro</option>
               </select>
             </div>
 

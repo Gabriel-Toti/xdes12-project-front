@@ -1,9 +1,18 @@
 import axios from "axios";
 
+// Use a NEXT_PUBLIC_ prefixed env var for values that must be available in the browser.
+// Non-prefixed NEXT_* env vars are only available on the server and will be undefined in client bundles.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+if (!API_URL && typeof window !== 'undefined') {
+  console.warn('Warning: NEXT_PUBLIC_API_URL is not set. Browser API requests may fail or use relative paths.');
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_API_URL,
+  // If API_URL is empty, axios will use relative URLs (useful for same-origin proxies).
+  baseURL: API_URL || undefined,
   withCredentials: true,
 });
+console.log('API URL:', API_URL)
 
 export interface Preference {
   name: string;
@@ -28,6 +37,7 @@ export const user = {
     phone: string;
     gender: string;
     cpf: string;
+    birthdate: string;
   }) => {
     const response = await api.post(`/user`, data);
     return response.data;

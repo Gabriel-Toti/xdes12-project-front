@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LoginDto, AuthResponse } from "../types/index";
-import { authApi } from "../utils/api";
+import { user } from "../utils/api";
 
 export function Login() {
   const router = useRouter();
@@ -27,17 +27,10 @@ export function Login() {
     try {
       setLoading(true);
       const loginData: LoginDto = { email, senha };
-      const response: AuthResponse = await authApi.login(loginData);
-
-      if (!response || !response.token) {
-        setError("Erro ao autenticar: resposta inválida do servidor");
-        return;
-      }
-
-      localStorage.setItem("token", response.token);
-      if (response.user) {
-        localStorage.setItem("user", JSON.stringify(response.user));
-      }
+      const response: AuthResponse = await user.login({
+        email: loginData.email,
+        password: loginData.senha,
+      });
 
       router.push("/conta");
     } catch (err: any) {
