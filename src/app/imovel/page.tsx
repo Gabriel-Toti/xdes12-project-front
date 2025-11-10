@@ -116,13 +116,19 @@ export default function CadastroImovel() {
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Número de vagas (moradores máximos)</label>
+              <label className="form-label">
+                Número de vagas (moradores máximos)
+              </label>
               <input
                 type="number"
                 min={1}
                 className="form-input"
                 value={numeroVagas}
-                onChange={(e) => setNumeroVagas(e.target.value === "" ? "" : Number(e.target.value))}
+                onChange={(e) =>
+                  setNumeroVagas(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
                 required
               />
             </div>
@@ -149,7 +155,11 @@ export default function CadastroImovel() {
                   min={0}
                   className="form-input"
                   value={quartos}
-                  onChange={(e) => setQuartos(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={(e) =>
+                    setQuartos(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
                 />
               </div>
               <div className="form-group">
@@ -159,7 +169,11 @@ export default function CadastroImovel() {
                   min={0}
                   className="form-input"
                   value={banheiros}
-                  onChange={(e) => setBanheiros(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={(e) =>
+                    setBanheiros(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
                 />
               </div>
               <div className="form-group">
@@ -169,7 +183,11 @@ export default function CadastroImovel() {
                   min={0}
                   className="form-input"
                   value={garagem}
-                  onChange={(e) => setGaragem(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={(e) =>
+                    setGaragem(
+                      e.target.value === "" ? "" : Number(e.target.value)
+                    )
+                  }
                 />
               </div>
             </div>
@@ -178,7 +196,12 @@ export default function CadastroImovel() {
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Hospedagem de festas</label>
-              <select className="form-select" value={hospedagemFestas} onChange={(e) => setHospedagemFestas(e.target.value)} required>
+              <select
+                className="form-select"
+                value={hospedagemFestas}
+                onChange={(e) => setHospedagemFestas(e.target.value)}
+                required
+              >
                 <option value="" disabled>
                   Selecionar
                 </option>
@@ -191,7 +214,12 @@ export default function CadastroImovel() {
 
             <div className="form-group">
               <label className="form-label">Presença de trotes</label>
-              <select className="form-select" value={presencaTrotes} onChange={(e) => setPresencaTrotes(e.target.value)} required>
+              <select
+                className="form-select"
+                value={presencaTrotes}
+                onChange={(e) => setPresencaTrotes(e.target.value)}
+                required
+              >
                 <option value="" disabled>
                   Selecionar
                 </option>
@@ -205,14 +233,24 @@ export default function CadastroImovel() {
             <div className="form-group">
               <label className="form-label">Pets permitidos</label>
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                <input type="checkbox" checked={petsPermitidos} onChange={(e) => setPetsPermitidos(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={petsPermitidos}
+                  onChange={(e) => setPetsPermitidos(e.target.checked)}
+                />
                 <span>Permitir pets neste imóvel</span>
               </div>
             </div>
 
             <div className="form-group">
               <label className="form-label">Fotos (área comum)</label>
-              <input type="file" className="form-input" accept="image/*" multiple onChange={handleFiles} />
+              <input
+                type="file"
+                className="form-input"
+                accept="image/*"
+                multiple
+                onChange={handleFiles}
+              />
             </div>
           </div>
 
@@ -224,7 +262,11 @@ export default function CadastroImovel() {
                 min={0}
                 className="form-input"
                 value={valorLocacao}
-                onChange={(e) => setValorLocacao(e.target.value === "" ? "" : Number(e.target.value))}
+                onChange={(e) =>
+                  setValorLocacao(
+                    e.target.value === "" ? "" : Number(e.target.value)
+                  )
+                }
                 required
               />
             </div>
@@ -244,10 +286,20 @@ export default function CadastroImovel() {
           {success && <div className="success-message">{success}</div>}
 
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading}
+            >
               {loading ? "Salvando..." : "Cadastrar Imóvel"}
             </button>
-            <button type="button" className="btn btn-secondary" onClick={() => router.push('/')}>Voltar</button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => router.push("/")}
+            >
+              Voltar
+            </button>
           </div>
         </form>
       </div>
