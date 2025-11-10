@@ -56,6 +56,10 @@ export const user = {
   delete: async (id: string) => {
     const response = await api.delete(`/user/${id}`);
     return response.data;
+  },
+  me: async () => {
+    const response = await api.get(`/me`);
+    return response.data;
   }
 };
 
