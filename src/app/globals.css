@@ -166,6 +166,11 @@ body {
   font-weight: 500;
 }
 
+/* Ensure labels have consistent height so side-by-side inputs align */
+.form-label {
+  min-height: 2.6rem;
+}
+
 .form-input,
 .form-textarea,
 .form-select {
