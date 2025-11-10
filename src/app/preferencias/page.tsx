@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { api, preference } from "@/utils/api";
 
 export default function Preferencias() {
   const router = useRouter();
@@ -56,8 +57,24 @@ export default function Preferencias() {
     setError(null);
 
     try {
-      // Simulação de envio para API
-      await new Promise((res) => setTimeout(res, 800));
+      await preference.create({
+        preferences: [
+          { name: "Uso de álcool", value: alcool, weight: 1 },
+          { name: "Frequência de festas", value: festas, weight: 1 },
+          { name: "Pets", value: pets, weight: 1 },
+          { name: "Convivência", value: convivencia.join(","), weight: 1 },
+          { name: "Hobbies", value: hobbies.join(","), weight: 1 },
+          { name: "Tipo de moradia", value: tipoMoradia, weight: 1 },
+          { name: "Valor da moradia", value: String(valorMoradia), weight: 1 },
+          { name: "Gênero do colega", value: generoColega, weight: 1 },
+          { name: "Localização", value: String(localizacao), weight: 1 },
+          {
+            name: "Horários de silêncio",
+            value: `${horariosSilencioDays.join(",")}|${horarioInicio}-${horarioFim}`,
+            weight: 1,
+          },
+        ],
+      });
       setSuccess("Preferências salvas com sucesso!");
 
       // Aqui você pode gravar no servidor. Por padrão redireciono para /conta.

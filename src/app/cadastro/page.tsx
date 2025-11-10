@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { api, user } from "@/utils/api";
 
 export default function Cadastro() {
   const router = useRouter();
@@ -69,9 +70,14 @@ export default function Cadastro() {
     setError(null);
 
     try {
-      // Aqui você chamaria sua API para criar o usuário.
-      // Como esta workspace pode não ter a API configurada, faremos uma simulação.
-      await new Promise((res) => setTimeout(res, 900));
+      await user.register({
+        name: nome,
+        email: email,
+        password: senha,
+        phone: celular,
+        gender: genero,
+        cpf: cpf
+      });
 
       setSuccess(
         "Cadastro realizado com sucesso! Redirecionando para login..."
