@@ -79,7 +79,7 @@ export default function Cadastro() {
 
       // redireciona para a tela de login e preenche o email
       setTimeout(() => {
-        router.push(`/?email=${encodeURIComponent(email)}`);
+        router.push(`/login?email=${encodeURIComponent(email)}`);
       }, 900);
     } catch (err: any) {
       setError(err?.message || "Erro ao cadastrar usuário");
@@ -202,7 +202,7 @@ export default function Cadastro() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => router.push("/")}
+              onClick={() => router.push("/login")}
             >
               Voltar ao Login
             </button>
