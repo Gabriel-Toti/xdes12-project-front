@@ -418,6 +418,25 @@ body {
   text-decoration: underline;
 }
 
+.account-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.account-table th,
+.account-table td {
+  border: 1px solid #ddd;
+  padding: 0.75rem;
+  text-align: left;
+}
+.account-table th {
+  background-color: #f9f9f9;
+  font-weight: 600;
+}
+
+.account-content {
+  overflow-x: auto;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .app-main {

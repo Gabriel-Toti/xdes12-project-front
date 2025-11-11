@@ -1,4 +1,46 @@
-import Link from "next/link";
+"use client";
+
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { LoginDto, AuthResponse } from "../types/index";
+import { user } from "../utils/api";
+
+export function Login() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialEmail = searchParams.get("email") || "";
+  const [email, setEmail] = useState(initialEmail);
+  const [senha, setSenha] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!email || !senha) {
+      setError("Por favor, preencha todos os campos");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const loginData: LoginDto = { email, senha };
+      const response: AuthResponse = await user.login({
+        email: loginData.email,
+        password: loginData.senha,
+      });
+
+      router.push("/conta");
+    } catch (err: any) {
+      setError(
+        err.response?.data?.error || err.message || "Erro ao fazer login"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
 export default function Home() {
   return (

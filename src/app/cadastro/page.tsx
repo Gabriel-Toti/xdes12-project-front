@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { api, user } from "@/utils/api";
 
 export default function Cadastro() {
   const router = useRouter();
@@ -69,9 +70,15 @@ export default function Cadastro() {
     setError(null);
 
     try {
-      // Aqui você chamaria sua API para criar o usuário.
-      // Como esta workspace pode não ter a API configurada, faremos uma simulação.
-      await new Promise((res) => setTimeout(res, 900));
+      await user.register({
+        name: nome,
+        email: email,
+        password: senha,
+        phone: celular,
+        gender: genero.charAt(0).toUpperCase(),
+        cpf: cpf,
+        birthdate: dataNascimento,
+      });
 
       setSuccess(
         "Cadastro realizado com sucesso! Redirecionando para login..."
@@ -157,9 +164,9 @@ export default function Cadastro() {
                 <option value="" disabled>
                   Selecione o gênero
                 </option>
-                <option value="masculino">Masculino</option>
-                <option value="feminino">Feminino</option>
-                <option value="outro">Outro</option>
+                <option value="M">Masculino</option>
+                <option value="F">Feminino</option>
+                <option value="O">Outro</option>
               </select>
             </div>
 
