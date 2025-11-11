@@ -1,90 +1,185 @@
 "use client";
-
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, preference } from "@/utils/api";
 
+type ModelField = {
+  type: "closed" | "location" | "schedule" | string;
+  expected: string[];
+};
+
 export default function Preferencias() {
   const router = useRouter();
+  const [model, setModel] = useState<Record<string, ModelField> | null>(null);
+  const [loadingModel, setLoadingModel] = useState(false);
 
-  const [alcool, setAlcool] = useState("");
-  const [festas, setFestas] = useState("");
-  const [pets, setPets] = useState("");
-  const [convivencia, setConvivencia] = useState<string[]>([]);
-  const [hobbies, setHobbies] = useState<string[]>([]);
-  const [tipoMoradia, setTipoMoradia] = useState("");
-  const [valorMoradia, setValorMoradia] = useState<number | "">("");
-  const [generoColega, setGeneroColega] = useState("");
-  const [localizacao, setLocalizacao] = useState<number | "">("");
-  const [horariosSilencioDays, setHorariosSilencioDays] = useState<string[]>(
-    []
-  );
-  const [horarioInicio, setHorarioInicio] = useState("");
-  const [horarioFim, setHorarioFim] = useState("");
-
+  // form state is dynamic: record fieldName -> value depending on type
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const validate = () => {
-    if (
-      !alcool ||
-      !festas ||
-      !pets ||
-      convivencia.length === 0 ||
-      hobbies.length === 0 ||
-      !tipoMoradia ||
-      valorMoradia === "" ||
-      !generoColega ||
-      localizacao === "" ||
-      horariosSilencioDays.length === 0 ||
-      !horarioInicio ||
-      !horarioFim
-    ) {
-      setError("Por favor, preencha todos os campos obrigatórios");
-      return false;
+  // Keep existing behavior for which closed fields are multi-select (checkboxes)
+  // This preserves the UX from your original component for fields like "Estilo de Convivência" and "Hobbies".
+  const multiSelectFields = new Set(["Estilo de Convivência", "Hobbies"]);
+
+  useEffect(() => {
+    const loadModel = async () => {
+      setLoadingModel(true);
+      try {
+        const res = await fetch("/preferences/model");
+        if (!res.ok) throw new Error("Falha ao carregar modelo de preferências");
+        const json = await res.json();
+        setModel(json);
+
+        // initialize default form values based on type
+        const defaults: Record<string, any> = {};
+        Object.entries(json).forEach(([k, v]: [any, any]) => {
+          if (v.type === "closed") {
+            if (multiSelectFields.has(k)) defaults[k] = [];
+            else defaults[k] = "";
+          } else if (v.type === "location") {
+            defaults[k] = ""; // will be number on submit
+          } else if (v.type === "schedule") {
+            defaults[k] = { days: [], start: "", end: "" };
+          } else {
+            defaults[k] = "";
+          }
+        });
+        setFormValues(defaults);
+      } catch (err: any) {
+        setError(err?.message || "Erro ao carregar modelo");
+      } finally {
+        setLoadingModel(false);
+      }
+    };
+    loadModel();
+  }, []);
+
+  const toggleMulti = (field: string, value: string) => {
+    setFormValues((prev) => {
+      const arr = Array.isArray(prev[field]) ? [...prev[field]] : [];
+      const idx = arr.indexOf(value);
+      if (idx >= 0) arr.splice(idx, 1);
+      else arr.push(value);
+      return { ...prev, [field]: arr };
+    });
+  };
+
+  const toggleScheduleDay = (field: string, dayKey: string) => {
+    setFormValues((prev) => {
+      const schedule = prev[field] || { days: [], start: "", end: "" };
+      const days = Array.isArray(schedule.days) ? [...schedule.days] : [];
+      const idx = days.indexOf(dayKey);
+      if (idx >= 0) days.splice(idx, 1);
+      else days.push(dayKey);
+      return { ...prev, [field]: { ...schedule, days } };
+    });
+  };
+
+  const setScheduleTime = (field: string, key: "start" | "end", value: string) => {
+    setFormValues((prev) => {
+      const schedule = prev[field] || { days: [], start: "", end: "" };
+      return { ...prev, [field]: { ...schedule, [key]: value } };
+    });
+  };
+
+  const validate = (): boolean => {
+    if (!model) return false;
+    for (const [name, def] of Object.entries(model)) {
+      const val = formValues[name];
+      if (def.type === "closed") {
+        if (multiSelectFields.has(name)) {
+          if (!Array.isArray(val) || val.length === 0) {
+            setError(`Preencha o campo: ${name}`);
+            return false;
+          }
+        } else {
+          if (!val) {
+            setError(`Preencha o campo: ${name}`);
+            return false;
+          }
+        }
+      }
+      if (def.type === "location") {
+        if (val === "" || val === null || val === undefined) {
+          setError(`Preencha o campo: ${name}`);
+          return false;
+        }
+      }
+      if (def.type === "schedule") {
+        if (!val || !Array.isArray(val.days) || val.days.length === 0 || !val.start || !val.end) {
+          setError(`Preencha o campo: ${name}`);
+          return false;
+        }
+      }
     }
-
     setError(null);
     return true;
+  };
+
+  const formatScheduleTime = (time: string) => {
+    // time is like "22:00" or "08:30". Convert to "22h" or "08h30".
+    if (!time) return "";
+    const [hh, mm] = time.split(":");
+    if (!mm || mm === "00") return `${parseInt(hh, 10)}h`;
+    return `${parseInt(hh, 10)}h${mm}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-
-    setLoading(true);
+    if (!model) return;
+    setSubmitting(true);
     setError(null);
-
     try {
-      await preference.create({
-        preferences: [
-          { name: "Uso de álcool", value: alcool, weight: 1 },
-          { name: "Frequência de festas", value: festas, weight: 1 },
-          { name: "Pets", value: pets, weight: 1 },
-          { name: "Convivência", value: convivencia.join(","), weight: 1 },
-          { name: "Hobbies", value: hobbies.join(","), weight: 1 },
-          { name: "Tipo de moradia", value: tipoMoradia, weight: 1 },
-          { name: "Valor da moradia", value: String(valorMoradia), weight: 1 },
-          { name: "Gênero do colega", value: generoColega, weight: 1 },
-          { name: "Localização", value: String(localizacao), weight: 1 },
-          {
-            name: "Horários de silêncio",
-            value: `${horariosSilencioDays.join(",")}|${horarioInicio}-${horarioFim}`,
-            weight: 1,
-          },
-        ],
-      });
-      setSuccess("Preferências salvas com sucesso!");
+      const preferences: Array<{ name: string; value: string | number; weight: number }> = [];
 
-      // Aqui você pode gravar no servidor. Por padrão redireciono para /conta.
+      for (const [name, def] of Object.entries(model)) {
+        const val = formValues[name];
+        if (def.type === "closed") {
+          if (multiSelectFields.has(name)) {
+            // send as comma separated list (keeps same behaviour as original component)
+            preferences.push({ name, value: Array.isArray(val) ? val.join(", ") : "", weight: 1 });
+          } else {
+            preferences.push({ name, value: String(val), weight: 1 });
+          }
+        } else if (def.type === "location") {
+          preferences.push({ name, value: Number(val), weight: 1 });
+        } else if (def.type === "schedule") {
+          // val: { days: string[], start: string, end: string }
+          const formatted = (val.days || []).map(() => `${formatScheduleTime(val.start)}-${formatScheduleTime(val.end)}`).join("; ");
+          // IMPORTANT: the backend expects a list of intervals separated by ";" where each interval corresponds to a day selected
+          preferences.push({ name, value: formatted, weight: 1 });
+        } else {
+          // fallback - send as string
+          preferences.push({ name, value: String(val ?? ""), weight: 1 });
+        }
+      }
+
+      await preference.create({ preferences });
+      setSuccess("Preferências salvas com sucesso!");
       setTimeout(() => router.push("/conta"), 900);
     } catch (err: any) {
       setError(err?.message || "Erro ao salvar preferências");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
+
+  if (loadingModel) return <div>Carregando modelo de preferências...</div>;
+  if (!model) return <div>Modelo de preferências não encontrado.</div>;
+
+  // days UI labels (keeps same order and keys as original code)
+  const days = [
+    ["segunda", "Seg"],
+    ["terca", "Ter"],
+    ["quarta", "Qua"],
+    ["quinta", "Qui"],
+    ["sexta", "Sex"],
+    ["sabado", "Sáb"],
+    ["domingo", "Dom"],
+  ];
 
   return (
     <div className="cadastro-page">
@@ -95,280 +190,124 @@ export default function Preferencias() {
         </div>
 
         <form onSubmit={handleSubmit} className="cadastro-form">
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Uso de álcool</label>
-              <select
-                className="form-select"
-                value={alcool}
-                onChange={(e) => setAlcool(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Selecionar opção
-                </option>
-                <option value="sim">Sim</option>
-                <option value="nao">Não</option>
-              </select>
-            </div>
+          {Object.entries(model).map(([name, def]) => (
+            <div key={name} className="form-group" style={{ marginBottom: 16 }}>
+              <label className="form-label">{name}</label>
 
-            <div className="form-group">
-              <label className="form-label">Frequência de festas</label>
-              <select
-                className="form-select"
-                value={festas}
-                onChange={(e) => setFestas(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Selecionar frequência
-                </option>
-                <option value="nunca">Nunca</option>
-                <option value="as_vezes">Às vezes</option>
-                <option value="frequentemente">Frequentemente</option>
-              </select>
-            </div>
-          </div>
+              {def.type === "closed" && (
+                <>
+                  {multiSelectFields.has(name) ? (
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 8 }}>
+                      {def.expected.map((opt) => (
+                        <label key={opt} style={{ fontWeight: 500 }}>
+                          <input
+                            type="checkbox"
+                            value={opt}
+                            checked={Array.isArray(formValues[name]) && formValues[name].includes(opt)}
+                            onChange={() => toggleMulti(name, opt)}
+                            style={{ marginRight: 8 }}
+                          />
+                          {opt}
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <select
+                      className="form-select"
+                      value={formValues[name] ?? ""}
+                      onChange={(e) => setFormValues((p) => ({ ...p, [name]: e.target.value }))}
+                      required
+                    >
+                      <option value="" disabled>
+                        Selecionar opção
+                      </option>
+                      {def.expected.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </>
+              )}
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Pets</label>
-              <select
-                className="form-select"
-                value={pets}
-                onChange={(e) => setPets(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Selecionar opção
-                </option>
-                <option value="aceita">Aceita</option>
-                <option value="nao_aceita">Não aceita</option>
-                <option value="possui">Possui</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Estilo de convivência</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {[
-                  { k: "tranquilo", label: "Tranquilo" },
-                  { k: "festeiro", label: "Festeiro" },
-                  { k: "organizado", label: "Organizado" },
-                  { k: "estudioso", label: "Estudioso" },
-                ].map((opt) => (
-                  <label key={opt.k} style={{ fontWeight: 500 }}>
-                    <input
-                      type="checkbox"
-                      value={opt.k}
-                      checked={convivencia.includes(opt.k)}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setConvivencia((prev) =>
-                          prev.includes(v)
-                            ? prev.filter((x) => x !== v)
-                            : [...prev, v]
-                        );
-                      }}
-                      style={{ marginRight: 8 }}
-                    />
-                    {opt.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">
-              Hobbies / Interesses (marque os aplicáveis)
-            </label>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))",
-                gap: 8,
-              }}
-            >
-              {[
-                { k: "esportes", label: "Esportes" },
-                { k: "jogos", label: "Jogos" },
-                { k: "animes", label: "Animes" },
-                { k: "leitura", label: "Leitura" },
-                { k: "cinema", label: "Cinema" },
-                { k: "musica", label: "Música" },
-              ].map((opt) => (
-                <label key={opt.k} style={{ fontWeight: 500 }}>
-                  <input
-                    type="checkbox"
-                    value={opt.k}
-                    checked={hobbies.includes(opt.k)}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setHobbies((prev) =>
-                        prev.includes(v)
-                          ? prev.filter((x) => x !== v)
-                          : [...prev, v]
-                      );
-                    }}
-                    style={{ marginRight: 8 }}
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Tipo de moradia</label>
-              <select
-                className="form-select"
-                value={tipoMoradia}
-                onChange={(e) => setTipoMoradia(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Selecionar tipo de moradia
-                </option>
-                <option value="pensao">Pensão</option>
-                <option value="apartamento">Apartamento</option>
-                <option value="casa">Casa</option>
-                <option value="republica">República</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">
-                Valor máximo de moradia (R$ / mês)
-              </label>
-              <input
-                type="number"
-                min={0}
-                className="form-input"
-                value={valorMoradia}
-                onChange={(e) =>
-                  setValorMoradia(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
-                placeholder="Valor máximo que você paga (ex: 1500)"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Gênero do colega de quarto</label>
-              <select
-                className="form-select"
-                value={generoColega}
-                onChange={(e) => setGeneroColega(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  Selecione o gênero do colega
-                </option>
-                <option value="masculino">Masculino</option>
-                <option value="feminino">Feminino</option>
-                <option value="outro">Outro</option>
-                <option value="sem_preferencia">Sem preferência</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Localização (raio em km)</label>
-              <input
-                type="number"
-                min={0}
-                step={0.1}
-                className="form-input"
-                value={localizacao}
-                onChange={(e) =>
-                  setLocalizacao(
-                    e.target.value === "" ? "" : Number(e.target.value)
-                  )
-                }
-                placeholder="Raio máximo em km (ex: 5)"
-                required
-              />
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Horários de Silêncio</label>
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                {[
-                  ["segunda", "Seg"],
-                  ["terca", "Ter"],
-                  ["quarta", "Qua"],
-                  ["quinta", "Qui"],
-                  ["sexta", "Sex"],
-                  ["sabado", "Sáb"],
-                  ["domingo", "Dom"],
-                ].map((d) => (
-                  <label key={d[0]} style={{ fontWeight: 500 }}>
-                    <input
-                      type="checkbox"
-                      value={d[0]}
-                      checked={horariosSilencioDays.includes(d[0])}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setHorariosSilencioDays((prev) =>
-                          prev.includes(v)
-                            ? prev.filter((x) => x !== v)
-                            : [...prev, v]
-                        );
-                      }}
-                      style={{ marginRight: 6 }}
-                    />
-                    {d[1]}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", gap: 12 }}>
-              <div style={{ flex: 1 }}>
-                <label className="form-label">Início</label>
+              {def.type === "location" && (
                 <input
-                  type="time"
+                  type="number"
+                  min={0}
+                  step={0.1}
                   className="form-input"
-                  value={horarioInicio}
-                  onChange={(e) => setHorarioInicio(e.target.value)}
+                  value={formValues[name]}
+                  onChange={(e) => setFormValues((p) => ({ ...p, [name]: e.target.value === "" ? "" : Number(e.target.value) }))}
+                  placeholder="Raio máximo em km (ex: 5)"
                   required
                 />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label className="form-label">Fim</label>
+              )}
+
+              {def.type === "schedule" && (
+                <div>
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      {days.map((d) => (
+                        <label key={d[0]} style={{ fontWeight: 500 }}>
+                          <input
+                            type="checkbox"
+                            value={d[0]}
+                            checked={Array.isArray(formValues[name]?.days) && formValues[name].days.includes(d[0])}
+                            onChange={() => toggleScheduleDay(name, d[0])}
+                            style={{ marginRight: 6 }}
+                          />
+                          {d[1]}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="form-label">Início</label>
+                      <input
+                        type="time"
+                        className="form-input"
+                        value={formValues[name]?.start ?? ""}
+                        onChange={(e) => setScheduleTime(name, "start", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="form-label">Fim</label>
+                      <input
+                        type="time"
+                        className="form-input"
+                        value={formValues[name]?.end ?? ""}
+                        onChange={(e) => setScheduleTime(name, "end", e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* fallback for unknown types */}
+              {def.type !== "closed" && def.type !== "location" && def.type !== "schedule" && (
                 <input
-                  type="time"
+                  type="text"
                   className="form-input"
-                  value={horarioFim}
-                  onChange={(e) => setHorarioFim(e.target.value)}
-                  required
+                  value={formValues[name] ?? ""}
+                  onChange={(e) => setFormValues((p) => ({ ...p, [name]: e.target.value }))}
                 />
-              </div>
+              )}
             </div>
-          </div>
+          ))}
 
           {error && <div className="error-message">{error}</div>}
           {success && <div className="success-message">{success}</div>}
 
-          <div className="form-actions">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-            >
-              {loading ? "Salvando..." : "Salvar Preferências"}
+          <div className="form-actions" style={{ display: "flex", gap: 8 }}>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>
+              {submitting ? "Salvando..." : "Salvar Preferências"}
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => router.push("/")}
-            >
+            <button type="button" className="btn btn-secondary" onClick={() => router.push("/")}> 
               Voltar
             </button>
           </div>

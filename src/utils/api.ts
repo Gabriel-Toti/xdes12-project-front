@@ -14,12 +14,6 @@ const api = axios.create({
 });
 console.log('API URL:', API_URL)
 
-export interface Preference {
-  name: string;
-  value: string;
-  weight: number;
-}
-
 export { api };
 
 export const user = {
@@ -65,7 +59,7 @@ export const user = {
 
 export const preference = {
   create: async (data: {
-    preferences: Preference[];
+    preferences: any[];
   }) => {
     const response = await api.post(`/preferences`, data);
     return response.data;
