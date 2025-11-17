@@ -59,13 +59,17 @@ export const user = {
 
 export const preference = {
   create: async (data: {
-    preferences: any[];
+    preferences: Array<{ name: string; value: string; weight: number }>;
   }) => {
-    const response = await api.post(`/preferences`, data);
+    const response = await api.post(`/preference`, data);
+    return response.data;
+  },
+  list: async () => {
+    const response = await api.get(`/preference`);
     return response.data;
   },
   getModel: async () => {
-    const response = await api.get(`/preferences/model`);
+    const response = await api.get(`/preference/model`);
     return response.data;
   },
   update: async (data: {
@@ -73,11 +77,113 @@ export const preference = {
     value?: string;
     weight?: number;
   }) => {
-    const response = await api.put(`/preferences`, data);
+    const response = await api.put(`/preference`, data);
     return response.data;
   },
   delete: async (name: string) => {
-    const response = await api.delete(`/preferences/${name}`);
+    const response = await api.delete(`/preference/${encodeURIComponent(name)}`);
+    return response.data;
+  }
+}
+
+export const property = {
+  create: async (data: {
+    name: string;
+    type: string;
+    costs: string;
+    address: string;
+    total_vacancies: number;
+    total_dorms: number;
+    total_bathrooms: number;
+    garage: boolean;
+    external_area: boolean;
+    members: Array<{ id: string }>;
+  }) => {
+    const response = await api.post(`/property`, data);
+    return response.data;
+  },
+  list: async () => {
+    const response = await api.get(`/property`);
+    return response.data;
+  },
+  get: async (id: string) => {
+    const response = await api.get(`/property/${id}`);
+    return response.data;
+  },
+  update: async (id: string, data: {
+    costs?: string;
+    total_vacancies?: number;
+  }) => {
+    const response = await api.put(`/property/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/property/${id}`);
+    return response.data;
+  }
+}
+
+export const rule = {
+  create: async (propertyId: string, data: {
+    rules: Array<{ name: string; value: string }>;
+  }) => {
+    const response = await api.post(`/rule/${propertyId}`, data);
+    return response.data;
+  },
+  list: async (propertyId: string) => {
+    const response = await api.get(`/rule/${propertyId}`);
+    return response.data;
+  },
+  update: async (propertyId: string, name: string, data: {
+    value: string;
+  }) => {
+    const response = await api.put(`/rule/${propertyId}/${encodeURIComponent(name)}`, data);
+    return response.data;
+  },
+  delete: async (propertyId: string, name: string) => {
+    const response = await api.delete(`/rule/${propertyId}/${encodeURIComponent(name)}`);
+    return response.data;
+  }
+}
+
+export const announcement = {
+  create: async (data: {
+    title: string;
+    description?: string;
+    average_cost: number;
+    boost?: boolean;
+    vacancies: number;
+    id_property: string;
+  }) => {
+    const response = await api.post(`/announcement`, data);
+    return response.data;
+  },
+  list: async (propertyId?: string) => {
+    const params = propertyId ? `?propertyId=${propertyId}` : '';
+    const response = await api.get(`/announcement${params}`);
+    return response.data;
+  },
+  listPublic: async (propertyId?: string) => {
+    const params = propertyId ? `?propertyId=${propertyId}` : '';
+    const response = await api.get(`/announcement/public${params}`);
+    return response.data;
+  },
+  get: async (propertyId: string, number: number) => {
+    const response = await api.get(`/announcement/${propertyId}/${number}`);
+    return response.data;
+  },
+  update: async (propertyId: string, number: number, data: {
+    title?: string;
+    description?: string;
+    average_cost?: number;
+    boost?: boolean;
+    vacancies?: number;
+  }) => {
+    const response = await api.put(`/announcement/${propertyId}/${number}`, data);
+    return response.data;
+  },
+  delete: async (propertyId: string, number: number) => {
+    const response = await api.delete(`/announcement/${propertyId}/${number}`);
     return response.data;
   }
 }

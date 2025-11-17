@@ -1,27 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { announcement, property } from "@/utils/api";
 
 export default function CadastroAnuncio() {
   const router = useRouter();
 
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
-  const [fotos, setFotos] = useState<FileList | null>(null);
   const [valor, setValor] = useState<number | "">("");
-  // boost removed per request
+  const [boost, setBoost] = useState(false);
   const [vagas, setVagas] = useState<number | "">("");
   const [imovelId, setImovelId] = useState("");
-
+  const [properties, setProperties] = useState<Array<{ id: string; name: string; total_vacancies: number }>>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const maxDesc = 480;
+  const maxDesc = 128;
 
-  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFotos(e.target.files);
+  useEffect(() => {
+    loadProperties();
+  }, []);
+
+  const loadProperties = async () => {
+    setLoadingProperties(true);
+    try {
+      const data = await property.list();
+      setProperties(data);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        router.push("/login");
+        return;
+      }
+      setError(err?.response?.data?.error || err?.message || "Erro ao carregar imóveis");
+    } finally {
+      setLoadingProperties(false);
+    }
   };
 
   const validate = () => {
@@ -29,16 +47,16 @@ export default function CadastroAnuncio() {
       setError("Título é obrigatório");
       return false;
     }
-    if (!descricao.trim()) {
-      setError("Descrição é obrigatória");
+    if (titulo.length > 32) {
+      setError("Título deve ter no máximo 32 caracteres");
       return false;
     }
-    if (descricao.length > maxDesc) {
+    if (descricao && descricao.length > maxDesc) {
       setError(`Descrição deve ter no máximo ${maxDesc} caracteres`);
       return false;
     }
-    if (valor === "" || Number(valor) < 0) {
-      setError("Informe um valor válido");
+    if (valor === "" || Number(valor) <= 0) {
+      setError("Informe um valor válido maior que zero");
       return false;
     }
     if (vagas === "" || Number(vagas) < 1) {
@@ -46,10 +64,15 @@ export default function CadastroAnuncio() {
       return false;
     }
     if (!imovelId.trim()) {
-      setError("Id do imóvel (referência) é obrigatório");
+      setError("Selecione um imóvel");
       return false;
     }
-    // boost removed
+
+    const selectedProperty = properties.find(p => p.id === imovelId);
+    if (selectedProperty && Number(vagas) > selectedProperty.total_vacancies) {
+      setError(`Número de vagas não pode ser maior que o total de vagas do imóvel (${selectedProperty.total_vacancies})`);
+      return false;
+    }
 
     setError(null);
     return true;
@@ -63,20 +86,27 @@ export default function CadastroAnuncio() {
     setError(null);
 
     try {
-      // Simulação de envio para API
-      await new Promise((res) => setTimeout(res, 900));
+      await announcement.create({
+        title: titulo,
+        description: descricao || undefined,
+        average_cost: Number(valor),
+        boost: boost,
+        vacancies: Number(vagas),
+        id_property: imovelId
+      });
 
-      const generatedId = `anuncio_${Date.now()}`;
-      setSuccess(`Anúncio criado com sucesso (ID: ${generatedId})`);
-
-      // redireciona para a página do anúncio ou conta
-      setTimeout(() => router.push(`/conta`), 1200);
+      setSuccess("Anúncio criado com sucesso!");
+      setTimeout(() => router.push("/imoveis"), 1200);
     } catch (err: any) {
-      setError(err?.message || "Erro ao criar anúncio");
+      const message = err?.response?.data?.error || err?.message || "Erro ao criar anúncio";
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
+
+  const selectedProperty = properties.find(p => p.id === imovelId);
+  const maxVacancies = selectedProperty?.total_vacancies || 0;
 
   return (
     <div className="cadastro-page">
@@ -86,112 +116,151 @@ export default function CadastroAnuncio() {
           <h3>Cadastro de Anúncio</h3>
         </div>
 
-        <form onSubmit={handleSubmit} className="cadastro-form">
-          <div className="form-group">
-            <label className="form-label">Título</label>
-            <input
-              type="text"
-              className="form-input"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              placeholder="Nome breve do anúncio"
-              required
-            />
+        {loadingProperties ? (
+          <div>Carregando imóveis...</div>
+        ) : properties.length === 0 ? (
+          <div>
+            <div className="error-message">Você não possui imóveis cadastrados. Cadastre um imóvel primeiro.</div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => router.push("/imovel")}
+              style={{ marginTop: "1rem" }}
+            >
+              Cadastrar Imóvel
+            </button>
           </div>
-
-          <div className="form-group">
-            <label className="form-label">
-              Descrição (até {maxDesc} caracteres)
-            </label>
-            <textarea
-              className="form-textarea"
-              value={descricao}
-              onChange={(e) => setDescricao(e.target.value.slice(0, maxDesc))}
-              placeholder="Detalhes do anúncio"
-              maxLength={maxDesc}
-              rows={6}
-              required
-            />
-            <div style={{ textAlign: "right", fontSize: 12, color: "#666" }}>
-              {descricao.length}/{maxDesc}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Fotos (quartos disponíveis)</label>
-            <input
-              type="file"
-              className="form-input"
-              accept="image/*"
-              multiple
-              onChange={handleFiles}
-            />
-          </div>
-
-          <div className="form-row">
+        ) : (
+          <form onSubmit={handleSubmit} className="cadastro-form">
             <div className="form-group">
-              <label className="form-label">Valor (R$ / mês)</label>
-              <input
-                type="number"
-                min={0}
-                className="form-input"
-                value={valor}
-                onChange={(e) =>
-                  setValor(e.target.value === "" ? "" : Number(e.target.value))
-                }
+              <label className="form-label">Imóvel</label>
+              <select
+                className="form-select"
+                value={imovelId}
+                onChange={(e) => {
+                  setImovelId(e.target.value);
+                  setVagas("");
+                }}
                 required
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Número de vagas</label>
-              <input
-                type="number"
-                min={1}
-                className="form-input"
-                value={vagas}
-                onChange={(e) =>
-                  setVagas(e.target.value === "" ? "" : Number(e.target.value))
-                }
-                required
-              />
+              >
+                <option value="" disabled>
+                  Selecione um imóvel
+                </option>
+                {properties.map((prop) => (
+                  <option key={prop.id} value={prop.id}>
+                    {prop.name} (Máx: {prop.total_vacancies} vagas)
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="form-group">
-              <label className="form-label">Id do Imóvel (referência)</label>
+              <label className="form-label">Título (máx. 32 caracteres)</label>
               <input
                 type="text"
                 className="form-input"
-                value={imovelId}
-                onChange={(e) => setImovelId(e.target.value)}
-                placeholder="Id do imóvel ao qual este anúncio se refere"
+                value={titulo}
+                onChange={(e) => setTitulo(e.target.value.slice(0, 32))}
+                placeholder="Nome breve do anúncio"
+                maxLength={32}
                 required
               />
+              <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: "4px" }}>
+                {titulo.length}/32
+              </div>
             </div>
-          </div>
 
-          {error && <div className="error-message">{error}</div>}
-          {success && <div className="success-message">{success}</div>}
+            <div className="form-group">
+              <label className="form-label">
+                Descrição (opcional, até {maxDesc} caracteres)
+              </label>
+              <textarea
+                className="form-textarea"
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value.slice(0, maxDesc))}
+                placeholder="Detalhes do anúncio"
+                maxLength={maxDesc}
+                rows={4}
+              />
+              <div style={{ textAlign: "right", fontSize: 12, color: "#666", marginTop: "4px" }}>
+                {descricao.length}/{maxDesc}
+              </div>
+            </div>
 
-          <div className="form-actions">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={loading}
-            >
-              {loading ? "Salvando..." : "Publicar Anúncio"}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => router.push("/")}
-            >
-              Voltar
-            </button>
-          </div>
-        </form>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Valor (R$ / mês)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="form-input"
+                  value={valor}
+                  onChange={(e) =>
+                    setValor(e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Número de vagas</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={maxVacancies}
+                  className="form-input"
+                  value={vagas}
+                  onChange={(e) =>
+                    setVagas(e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                  required
+                  disabled={!imovelId}
+                />
+                {selectedProperty && (
+                  <p style={{ fontSize: "0.875rem", color: "#666", marginTop: "4px" }}>
+                    Máximo: {maxVacancies} vagas
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                <input
+                  type="checkbox"
+                  checked={boost}
+                  onChange={(e) => setBoost(e.target.checked)}
+                  style={{ marginRight: "8px" }}
+                />
+                Boost (destaque no anúncio - pago)
+              </label>
+              <p style={{ fontSize: "0.875rem", color: "#666", marginTop: "4px" }}>
+                Anúncios com boost aparecem primeiro na listagem
+              </p>
+            </div>
+
+            {error && <div className="error-message">{error}</div>}
+            {success && <div className="success-message">{success}</div>}
+
+            <div className="form-actions">
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+              >
+                {loading ? "Salvando..." : "Publicar Anúncio"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => router.push("/imoveis")}
+              >
+                Voltar
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

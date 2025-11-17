@@ -1,89 +1,182 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import type { LoginDto, AuthResponse } from "../types/index";
-import { user } from "../utils/api";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { announcement } from "../utils/api";
 
-export function Login() {
+type Announcement = {
+  id_property: string;
+  number: number;
+  title: string;
+  description: string | null;
+  average_cost: number;
+  boost: boolean | null;
+  vacancies: number;
+  created_at: string | null;
+  property: {
+    id: string;
+    name: string;
+    type: string;
+    address: string;
+    rule: Array<{
+      attribute: {
+        name: string;
+        value: string;
+      };
+    }>;
+  };
+};
+
+export default function Home() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const initialEmail = searchParams.get("email") || "";
-  const [email, setEmail] = useState(initialEmail);
-  const [senha, setSenha] = useState("");
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    loadAnnouncements();
+  }, []);
+
+  const loadAnnouncements = async () => {
+    setLoading(true);
     setError(null);
-
-    if (!email || !senha) {
-      setError("Por favor, preencha todos os campos");
-      return;
-    }
-
     try {
-      setLoading(true);
-      const loginData: LoginDto = { email, senha };
-      const response: AuthResponse = await user.login({
-        email: loginData.email,
-        password: loginData.senha,
+      // Usa a rota pública que não requer autenticação
+      const data = await announcement.listPublic();
+      
+      // Backend já ordena por boost e data, mas garantimos aqui também
+      const sorted = [...data].sort((a, b) => {
+        const aBoost = a.boost === true ? 1 : 0;
+        const bBoost = b.boost === true ? 1 : 0;
+        if (aBoost !== bBoost) {
+          return bBoost - aBoost; // Boost primeiro
+        }
+        // Se ambos têm ou não têm boost, ordenar por data
+        const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return bDate - aDate; // Mais recentes primeiro
       });
-
-      router.push("/conta");
+      
+      setAnnouncements(sorted);
     } catch (err: any) {
-      setError(
-        err.response?.data?.error || err.message || "Erro ao fazer login"
-      );
+      // Não redireciona para login na home, apenas mostra erro silencioso
+      console.error("Erro ao carregar anúncios:", err);
+      setError("Não foi possível carregar os anúncios.");
     } finally {
       setLoading(false);
     }
   };
 
-export default function Home() {
+  const formatType = (type: string) => {
+    const map: Record<string, string> = {
+      CASA: "Casa",
+      APARTAMENTO: "Apartamento",
+      REPUBLICA: "República",
+      PENSAO: "Pensão"
+    };
+    return map[type] || type;
+  };
+
   return (
     <div className="app">
       <header className="app-header">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h1>CASAR</h1>
           <nav className="nav-menu">
-            <Link className="nav-link" href="/cadastro">Conta</Link>
-            <Link className="nav-link" href="/anuncio">Anúncio</Link>
-            <Link className="nav-link" href="/imovel">Imóvel</Link>
-            <Link className="nav-link" href="/preferencias">Preferências</Link>
+            <Link className="nav-link" href="/cadastro">Cadastro</Link>
+            <Link className="nav-link" href="/login">Login</Link>
             <Link className="nav-link" href="/">Home</Link>
           </nav>
         </div>
       </header>
 
       <main className="app-main">
-        <section style={{ maxWidth: 900, margin: "1.5rem auto" }}>
-          <h2 className="page-title">Anúncio de exemplo</h2>
+        <section style={{ maxWidth: 1200, margin: "1.5rem auto", padding: "0 1rem" }}>
+          <h2 className="page-title">Anúncios Disponíveis</h2>
 
-          <div className="card">
-            <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-              <div style={{ width: 220, height: 140, background: "#f0f0f0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#999" }}>
-                Foto do imóvel
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <div className="card-title">Quarto disponível em República Central</div>
-                <div className="card-subtitle" style={{ marginBottom: 8 }}>Quarto mobiliado, perto da universidade</div>
-                <p style={{ color: "#555", marginBottom: 8 }}>Descrição curta: quarto individual em república com cozinha compartilhada, lavanderia e internet inclusa.</p>
-
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <div style={{ fontWeight: 700, color: "#333" }}>R$ 900 / mês</div>
-                  <div style={{ color: "#666" }}>Vagas: 1</div>
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <Link href="/anuncio" className="btn btn-primary">Ver anúncio</Link>
-                </div>
-              </div>
+          {error && (
+            <div style={{ padding: "1rem", background: "#fee2e2", color: "#991b1b", borderRadius: "8px", marginBottom: "1rem" }}>
+              {error}
             </div>
-          </div>
+          )}
+
+          {loading ? (
+            <div style={{ textAlign: "center", padding: "2rem" }}>Carregando anúncios...</div>
+          ) : announcements.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "2rem" }}>
+              <p>Nenhum anúncio disponível no momento.</p>
+              <Link href="/login" className="btn btn-primary" style={{ marginTop: "1rem", color: "white" }}>
+                Faça login para criar anúncios
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+              {announcements.map((ann) => (
+                <div
+                  key={`${ann.id_property}-${ann.number}`}
+                  className="card"
+                  style={{
+                    border: ann.boost ? "2px solid #f59e0b" : "1px solid #e5e7eb",
+                    background: ann.boost ? "#fffbeb" : "white"
+                  }}
+                >
+                  <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                    <div style={{ width: 220, height: 140, background: "#f0f0f0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#999", flexShrink: 0 }}>
+                      Foto do imóvel
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+                        <div className="card-title">{ann.title}</div>
+                        {ann.boost && (
+                          <span
+                            style={{
+                              background: "#f59e0b",
+                              color: "white",
+                              padding: "2px 8px",
+                              borderRadius: "4px",
+                              fontSize: "0.75rem",
+                              fontWeight: "bold"
+                            }}
+                          >
+                            BOOST
+                          </span>
+                        )}
+                      </div>
+                      <div className="card-subtitle" style={{ marginBottom: 8 }}>
+                        {ann.property.name} • {formatType(ann.property.type)}
+                      </div>
+                      {ann.description && (
+                        <p style={{ color: "#555", marginBottom: 8 }}>{ann.description}</p>
+                      )}
+
+                      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
+                        <div style={{ fontWeight: 700, color: "#333" }}>
+                          R$ {ann.average_cost.toLocaleString("pt-BR")} / mês
+                        </div>
+                        <div style={{ color: "#666" }}>Vagas: {ann.vacancies}</div>
+                        <div style={{ color: "#666", fontSize: "0.875rem" }}>
+                          {ann.property.address}
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 12 }}>
+                        <Link
+                          href={`/anuncio/${ann.id_property}/${ann.number}`}
+                          className="btn btn-primary"
+                          style={{ color: "white" }}
+                        >
+                          Ver anúncio
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
         </section>
       </main>
     </div>

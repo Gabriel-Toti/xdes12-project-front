@@ -109,13 +109,20 @@ export default function Conta() {
                         </table>
                     </div>
                 )}
-                <div className="form-actions">
+                <div className="form-actions" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                     <button
                         type="button"
                         className="btn btn-primary"
                         onClick={() => router.push("/preferencias")}
                     >
                         Preferências
+                    </button>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => router.push("/imoveis")}
+                    >
+                        Meus Imóveis
                     </button>
                 </div>
                 <div className="form-actions">
