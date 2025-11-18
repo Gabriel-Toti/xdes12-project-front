@@ -23,6 +23,32 @@ export default function CadastroImovel() {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Parse schedule value from backend format "HHh-HHh; HHh-HHh" to entries array
+  const parseScheduleValue = (value: string): Array<{ start: string; end: string }> => {
+    if (!value) return [];
+    const intervals = value.split(";").map(s => s.trim());
+    return intervals.map(interval => {
+      const [start, end] = interval.split("-").map(s => s.trim());
+      // Convert "22h" or "22h30" to "22:00" or "22:30"
+      const parseTime = (timeStr: string): string => {
+        const match = timeStr.match(/(\d{1,2})h(\d{2})?/);
+        if (!match) return "";
+        const hour = match[1].padStart(2, "0");
+        const minute = match[2] || "00";
+        return `${hour}:${minute}`;
+      };
+      return { start: parseTime(start), end: parseTime(end) };
+    }).filter(e => e.start && e.end);
+  };
+
+  // Format schedule entries to backend format
+  const formatScheduleTime = (time: string): string => {
+    if (!time) return "";
+    const [hh = "00", mm = "00"] = time.split(":");
+    const normalizedHour = hh.padStart(2, "0");
+    return !mm || mm === "00" ? `${normalizedHour}h` : `${normalizedHour}h${mm}`;
+  };
+
   useEffect(() => {
     const loadModel = async () => {
       setLoadingModel(true);
@@ -50,6 +76,38 @@ export default function CadastroImovel() {
     const updated = [...regras];
     updated[index] = { ...updated[index], [field]: val };
     setRegras(updated);
+  };
+
+  const addScheduleEntry = (index: number, start: string, end: string) => {
+    const rule = regras[index];
+    if (!rule) return;
+    
+    const schedule = parseScheduleValue(rule.value || "");
+    const newEntries = [...schedule, { start, end }];
+    const formattedValue = newEntries
+      .map((entry: { start: string; end: string }) => 
+        `${formatScheduleTime(entry.start)}-${formatScheduleTime(entry.end)}`
+      )
+      .join("; ");
+    
+    updateRule(index, "value", formattedValue);
+  };
+
+  const removeScheduleEntry = (index: number, entryIndex: number) => {
+    const rule = regras[index];
+    if (!rule) return;
+    
+    const schedule = parseScheduleValue(rule.value || "");
+    schedule.splice(entryIndex, 1);
+    const formattedValue = schedule.length > 0
+      ? schedule
+          .map((entry: { start: string; end: string }) => 
+            `${formatScheduleTime(entry.start)}-${formatScheduleTime(entry.end)}`
+          )
+          .join("; ")
+      : "";
+    
+    updateRule(index, "value", formattedValue);
   };
 
   const validate = () => {
@@ -91,10 +149,25 @@ export default function CadastroImovel() {
         return false;
       }
       // Validar que campos múltiplos têm pelo menos um valor selecionado
-      const isMultiple = r.name === "Hobbies" || r.name === "Estilo de Convivência";
+      const isMultiple = r.name === "Estilo de Convivência";
       if (isMultiple && (!r.value || r.value.trim() === "")) {
         setError(`A regra "${r.name}" deve ter pelo menos um valor selecionado`);
         return false;
+      }
+      // Validar schedule
+      if (model && model[r.name]?.type === "schedule") {
+        const schedule = parseScheduleValue(r.value);
+        if (schedule.length === 0) {
+          setError(`A regra "${r.name}" deve ter pelo menos um intervalo de horário cadastrado`);
+          return false;
+        }
+      }
+      // Validar location
+      if (model && model[r.name]?.type === "location") {
+        if (!r.value || isNaN(Number(r.value)) || Number(r.value) <= 0) {
+          setError(`A regra "${r.name}" deve ser um número válido maior que zero`);
+          return false;
+        }
       }
     }
     setError(null);
@@ -304,17 +377,123 @@ export default function CadastroImovel() {
                   <option value="" disabled>
                     Selecione o atributo
                   </option>
-                  {model && Object.entries(model).map(([name]) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
+                  {model && Object.entries(model)
+                    .filter(([name]) => name !== "Tipo de Moradia" && name !== "Hobbies")
+                    .map(([name]) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
                 </select>
                 {r.name && model && (() => {
                   const fieldConfig = model[r.name];
-                  const isMultiple = r.name === "Hobbies" || r.name === "Estilo de Convivência";
+                  const isMultiple = r.name === "Estilo de Convivência";
                   const currentValues = r.value ? r.value.split(", ") : [];
                   
+                  // Campo schedule (Horários de silêncio)
+                  if (fieldConfig?.type === "schedule") {
+                    const scheduleEntries = parseScheduleValue(r.value || "");
+                    return (
+                      <div style={{ flex: 1 }}>
+                        {scheduleEntries.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                            {scheduleEntries.map((entry: { start: string; end: string }, idx: number) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  display: "flex",
+                                  gap: 8,
+                                  alignItems: "center",
+                                  padding: "8px",
+                                  background: "#f9fafb",
+                                  borderRadius: "4px"
+                                }}
+                              >
+                                <span style={{ flex: 1 }}>
+                                  {formatScheduleTime(entry.start)} - {formatScheduleTime(entry.end)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeScheduleEntry(index, idx)}
+                                  style={{
+                                    padding: "4px 8px",
+                                    background: "#ef4444",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "4px",
+                                    cursor: "pointer"
+                                  }}
+                                >
+                                  Remover
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <div style={{ flex: 1 }}>
+                            <label className="form-label">Horário de Início</label>
+                            <input
+                              type="time"
+                              className="form-input"
+                              id={`schedule-${index}-start`}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label className="form-label">Horário de Fim</label>
+                            <input
+                              type="time"
+                              className="form-input"
+                              id={`schedule-${index}-end`}
+                            />
+                          </div>
+                          <div style={{ display: "flex", alignItems: "flex-end" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const startInput = document.getElementById(`schedule-${index}-start`) as HTMLInputElement;
+                                const endInput = document.getElementById(`schedule-${index}-end`) as HTMLInputElement;
+                                if (startInput?.value && endInput?.value) {
+                                  addScheduleEntry(index, startInput.value, endInput.value);
+                                  startInput.value = "";
+                                  endInput.value = "";
+                                }
+                              }}
+                              style={{
+                                padding: "8px 16px",
+                                background: "#059669",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              Adicionar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  // Campo location (Localização)
+                  if (fieldConfig?.type === "location") {
+                    return (
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.1}
+                        className="form-input"
+                        style={{ flex: 1 }}
+                        value={r.value}
+                        onChange={(e) => updateRule(index, "value", e.target.value === "" ? "" : e.target.value)}
+                        placeholder="Raio máximo em km (ex: 5)"
+                        required
+                      />
+                    );
+                  }
+                  
+                  // Campo múltiplo (Estilo de Convivência)
                   if (isMultiple && fieldConfig?.expected) {
                     return (
                       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
