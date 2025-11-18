@@ -54,6 +54,10 @@ export const user = {
   me: async () => {
     const response = await api.get(`/me`);
     return response.data;
+  },
+  logout: async () => {
+    const response = await api.post(`/logout`);
+    return response.data;
   }
 };
 
@@ -61,11 +65,15 @@ export const preference = {
   create: async (data: {
     preferences: any[];
   }) => {
-    const response = await api.post(`/preferences`, data);
+    const response = await api.post(`/preference`, data);
     return response.data;
   },
   getModel: async () => {
-    const response = await api.get(`/preferences/model`);
+    const response = await api.get(`/preference/model`);
+    return response.data;
+  },
+  list: async () => {
+    const response = await api.get(`/preference`);
     return response.data;
   },
   update: async (data: {
@@ -73,11 +81,179 @@ export const preference = {
     value?: string;
     weight?: number;
   }) => {
-    const response = await api.put(`/preferences`, data);
+    const response = await api.put(`/preference`, data);
     return response.data;
   },
   delete: async (name: string) => {
-    const response = await api.delete(`/preferences/${name}`);
+    const response = await api.delete(`/preference/${name}`);
+    return response.data;
+  }
+}
+
+export const announcement = {
+  create: async (data: {
+    title: string;
+    description?: string;
+    average_cost: number;
+    boost?: boolean;
+    vacancies: number;
+    id_property: string;
+  }) => {
+    const response = await api.post(`/announcement`, data);
+    return response.data;
+  },
+  list: async (propertyId?: string) => {
+    const params = propertyId ? `?propertyId=${propertyId}` : '';
+    const response = await api.get(`/announcement${params}`);
+    return response.data;
+  },
+  listPublic: async () => {
+    const response = await api.get(`/announcement/public`);
+    return response.data;
+  },
+  get: async (propertyId: string, number: number) => {
+    const response = await api.get(`/announcement/${propertyId}/${number}`);
+    return response.data;
+  },
+  update: async (propertyId: string, number: number, data: {
+    title?: string;
+    description?: string;
+    average_cost?: number;
+    boost?: boolean;
+    vacancies?: number;
+  }) => {
+    const response = await api.put(`/announcement/${propertyId}/${number}`, data);
+    return response.data;
+  },
+  delete: async (propertyId: string, number: number) => {
+    const response = await api.delete(`/announcement/${propertyId}/${number}`);
+    return response.data;
+  },
+  uploadImage: async (propertyId: string, number: number, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+    const response = await api.post(`/announcement/${propertyId}/${number}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+  deleteImage: async (propertyId: string, number: number, imageId: string) => {
+    const response = await api.delete(`/announcement/${propertyId}/${number}/image/${imageId}`);
+    return response.data;
+  }
+}
+
+export const match = {
+  create: async (data: {
+    id_property: string;
+    number_announcement: number;
+  }) => {
+    const response = await api.post(`/match`, data);
+    return response.data;
+  },
+  getAll: async (propertyId?: string, numberAnnouncement?: number) => {
+    const params = new URLSearchParams();
+    if (propertyId) params.append('propertyId', propertyId);
+    if (numberAnnouncement !== undefined) params.append('numberAnnouncement', numberAnnouncement.toString());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await api.get(`/match${query}`);
+    return response.data;
+  },
+  get: async (propertyId: string, numberAnnouncement: number) => {
+    const response = await api.get(`/match/${propertyId}/${numberAnnouncement}`);
+    return response.data;
+  },
+  update: async (propertyId: string, numberAnnouncement: number, data: {
+    accepted?: boolean;
+    matchUserId: string;
+  }) => {
+    const response = await api.put(`/match/${propertyId}/${numberAnnouncement}`, data);
+    return response.data;
+  },
+  delete: async (propertyId: string, numberAnnouncement: number, matchUserId: string) => {
+    const response = await api.delete(`/match/${propertyId}/${numberAnnouncement}`, {
+      data: { matchUserId }
+    });
+    return response.data;
+  }
+}
+
+export const property = {
+  create: async (data: {
+    name: string;
+    type: string;
+    address: string;
+    total_vacancies: number;
+    total_dorms: number;
+    total_bathrooms: number;
+    garage: boolean;
+    external_area: boolean;
+    costs: string;
+    members: Array<{ id: string }>;
+  }) => {
+    const response = await api.post(`/property`, data);
+    return response.data;
+  },
+  get: async (id: string) => {
+    const response = await api.get(`/property/${id}`);
+    return response.data;
+  },
+  list: async () => {
+    const response = await api.get(`/property`);
+    return response.data;
+  },
+  update: async (id: string, data: {
+    costs?: string;
+    total_vacancies?: number;
+  }) => {
+    const response = await api.put(`/property/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/property/${id}`);
+    return response.data;
+  },
+  uploadImage: async (id: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+    const response = await api.post(`/property/${id}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+  deleteImage: async (id: string, imageId: string) => {
+    const response = await api.delete(`/property/${id}/image/${imageId}`);
+    return response.data;
+  }
+}
+
+export const rule = {
+  create: async (propertyId: string, data: {
+    rules: Array<{ name: string; value: string }>;
+  }) => {
+    const response = await api.post(`/rule/${propertyId}`, data);
+    return response.data;
+  },
+  get: async (propertyId: string) => {
+    const response = await api.get(`/rule/${propertyId}`);
+    return response.data;
+  },
+  update: async (propertyId: string, name: string, data: {
+    value: string;
+  }) => {
+    const response = await api.put(`/rule/${propertyId}/${encodeURIComponent(name)}`, data);
+    return response.data;
+  },
+  delete: async (propertyId: string, name: string) => {
+    const response = await api.delete(`/rule/${propertyId}/${encodeURIComponent(name)}`);
     return response.data;
   }
 }

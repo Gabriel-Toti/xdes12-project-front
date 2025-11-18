@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { LoginDto, AuthResponse } from "../../types/index";
-import { authApi } from "../../utils/api";
+import type { LoginDto } from "../../types/index";
+import { user } from "../../utils/api";
 
 export default function Login() {
   const router = useRouter();
@@ -27,17 +27,10 @@ export default function Login() {
     try {
       setLoading(true);
       const loginData: LoginDto = { email, senha };
-      const response: AuthResponse = await authApi.login(loginData);
-
-      if (!response || !response.token) {
-        setError("Erro ao autenticar: resposta inválida do servidor");
-        return;
-      }
-
-      localStorage.setItem("token", response.token);
-      if (response.user) {
-        localStorage.setItem("user", JSON.stringify(response.user));
-      }
+      await user.login({
+        email: loginData.email,
+        password: loginData.senha,
+      });
 
       router.push("/conta");
     } catch (err: any) {

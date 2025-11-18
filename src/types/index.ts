@@ -37,7 +37,8 @@ export interface LoginDto {
     senha: string;
 }
 
-export interface AuthResponse {
-    token?: string;
-    user?: Usuario;
-}  
+export interface PreferenceEntry {
+    name: string;
+    value: string;
+    weight: number;
+}
