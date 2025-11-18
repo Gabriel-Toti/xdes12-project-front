@@ -54,6 +54,10 @@ export const user = {
   me: async () => {
     const response = await api.get(`/me`);
     return response.data;
+  },
+  logout: async () => {
+    const response = await api.post(`/logout`);
+    return response.data;
   }
 };
 
@@ -66,6 +70,10 @@ export const preference = {
   },
   getModel: async () => {
     const response = await api.get(`/preference/model`);
+    return response.data;
+  },
+  list: async () => {
+    const response = await api.get(`/preference`);
     return response.data;
   },
   update: async (data: {
@@ -120,6 +128,22 @@ export const announcement = {
   delete: async (propertyId: string, number: number) => {
     const response = await api.delete(`/announcement/${propertyId}/${number}`);
     return response.data;
+  },
+  uploadImage: async (propertyId: string, number: number, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+    const response = await api.post(`/announcement/${propertyId}/${number}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+  deleteImage: async (propertyId: string, number: number, imageId: string) => {
+    const response = await api.delete(`/announcement/${propertyId}/${number}/image/${imageId}`);
+    return response.data;
   }
 }
 
@@ -145,12 +169,15 @@ export const match = {
   },
   update: async (propertyId: string, numberAnnouncement: number, data: {
     accepted?: boolean;
+    matchUserId: string;
   }) => {
     const response = await api.put(`/match/${propertyId}/${numberAnnouncement}`, data);
     return response.data;
   },
-  delete: async (propertyId: string, numberAnnouncement: number) => {
-    const response = await api.delete(`/match/${propertyId}/${numberAnnouncement}`);
+  delete: async (propertyId: string, numberAnnouncement: number, matchUserId: string) => {
+    const response = await api.delete(`/match/${propertyId}/${numberAnnouncement}`, {
+      data: { matchUserId }
+    });
     return response.data;
   }
 }
@@ -188,6 +215,22 @@ export const property = {
   },
   delete: async (id: string) => {
     const response = await api.delete(`/property/${id}`);
+    return response.data;
+  },
+  uploadImage: async (id: string, files: File[]) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('images', file);
+    });
+    const response = await api.post(`/property/${id}/image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+  deleteImage: async (id: string, imageId: string) => {
+    const response = await api.delete(`/property/${id}/image/${imageId}`);
     return response.data;
   }
 }

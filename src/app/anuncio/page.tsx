@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { announcement, property } from "@/utils/api";
+import Navbar from "@/components/Navbar";
 
 export default function CadastroAnuncio() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function CadastroAnuncio() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
   const maxDesc = 128;
 
@@ -29,13 +31,22 @@ export default function CadastroAnuncio() {
     setLoadingProperties(true);
     try {
       const data = await property.list();
-      setProperties(data);
+      // Verificar se o usuário é admin de pelo menos uma propriedade
+      // A API já retorna apenas propriedades onde o usuário é admin
+      if (data && data.length > 0) {
+        setProperties(data);
+        setIsAuthorized(true);
+      } else {
+        setIsAuthorized(false);
+        setError("Apenas responsáveis por imóveis podem cadastrar anúncios. Você precisa ser administrador de pelo menos um imóvel.");
+      }
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
         router.push("/login");
         return;
       }
+      setIsAuthorized(false);
       setError(err?.response?.data?.error || err?.message || "Erro ao carregar imóveis");
     } finally {
       setLoadingProperties(false);
@@ -109,28 +120,45 @@ export default function CadastroAnuncio() {
   const maxVacancies = selectedProperty?.total_vacancies || 0;
 
   return (
-    <div className="cadastro-page">
-      <div className="cadastro-container">
-        <div className="cadastro-header">
-          <h2>CASAR</h2>
-          <h3>Cadastro de Anúncio</h3>
-        </div>
+    <div className="app">
+      <Navbar />
+      <main className="app-main">
+        <div className="cadastro-page">
+          <div className="cadastro-container">
+            <div className="cadastro-header">
+              <h2>CASAR</h2>
+              <h3>Cadastro de Anúncio</h3>
+            </div>
 
-        {loadingProperties ? (
-          <div>Carregando imóveis...</div>
-        ) : properties.length === 0 ? (
-          <div>
-            <div className="error-message">Você não possui imóveis cadastrados. Cadastre um imóvel primeiro.</div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => router.push("/imovel")}
-              style={{ marginTop: "1rem" }}
-            >
-              Cadastrar Imóvel
-            </button>
-          </div>
-        ) : (
+            {loadingProperties ? (
+              <div>Carregando imóveis...</div>
+            ) : isAuthorized === false ? (
+              <div>
+                <div className="error-message">
+                  {error || "Apenas responsáveis por imóveis podem cadastrar anúncios. Você precisa ser administrador de pelo menos um imóvel."}
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => router.push("/imoveis")}
+                  style={{ marginTop: "1rem" }}
+                >
+                  Voltar para Meus Imóveis
+                </button>
+              </div>
+            ) : properties.length === 0 ? (
+              <div>
+                <div className="error-message">Você não possui imóveis cadastrados. Cadastre um imóvel primeiro.</div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => router.push("/imovel")}
+                  style={{ marginTop: "1rem" }}
+                >
+                  Cadastrar Imóvel
+                </button>
+              </div>
+            ) : (
           <form onSubmit={handleSubmit} className="cadastro-form">
             <div className="form-group">
               <label className="form-label">Imóvel</label>
@@ -260,8 +288,10 @@ export default function CadastroAnuncio() {
               </button>
             </div>
           </form>
-        )}
-      </div>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

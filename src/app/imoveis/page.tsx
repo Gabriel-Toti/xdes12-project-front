@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { property, announcement, match } from "@/utils/api";
+import Navbar from "@/components/Navbar";
 
 type Property = {
   id: string;
@@ -17,6 +18,10 @@ type Property = {
   garage: boolean;
   external_area: boolean;
   created_at: string;
+  image_url?: string | null;
+  images?: Array<{
+    image_url: string;
+  }>;
   rules: Array<{ name: string; value: string }>;
   active_announcements: number;
 };
@@ -30,6 +35,7 @@ type AnnouncementWithMatches = {
       id: string;
       name: string;
       email: string;
+      phone?: string;
     };
     accepted: boolean | null;
   }>;
@@ -42,6 +48,7 @@ export default function Imoveis() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [processingMatches, setProcessingMatches] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadProperties();
@@ -102,6 +109,51 @@ export default function Imoveis() {
     }
   };
 
+  const handleAcceptMatch = async (propertyId: string, number: number, matchUserId: string) => {
+    const matchKey = `${propertyId}-${number}-${matchUserId}`;
+    setProcessingMatches(prev => new Set(prev).add(matchKey));
+    setError(null);
+    
+    try {
+      await match.update(propertyId, number, {
+        accepted: true,
+        matchUserId: matchUserId
+      });
+      await loadProperties();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erro ao aceitar match');
+    } finally {
+      setProcessingMatches(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(matchKey);
+        return newSet;
+      });
+    }
+  };
+
+  const handleRejectMatch = async (propertyId: string, number: number, matchUserId: string) => {
+    if (!confirm('Tem certeza que deseja recusar este match?')) {
+      return;
+    }
+
+    const matchKey = `${propertyId}-${number}-${matchUserId}`;
+    setProcessingMatches(prev => new Set(prev).add(matchKey));
+    setError(null);
+    
+    try {
+      await match.delete(propertyId, number, matchUserId);
+      await loadProperties();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erro ao recusar match');
+    } finally {
+      setProcessingMatches(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(matchKey);
+        return newSet;
+      });
+    }
+  };
+
   const formatType = (type: string) => {
     const map: Record<string, string> = {
       CASA: "Casa",
@@ -123,12 +175,15 @@ export default function Imoveis() {
   }
 
   return (
-    <div className="cadastro-page">
-      <div className="cadastro-container">
-        <div className="cadastro-header">
-          <h2>CASAR</h2>
-          <h3>Meus Imóveis</h3>
-        </div>
+    <div className="app">
+      <Navbar />
+      <main className="app-main">
+        <div className="cadastro-page">
+          <div className="cadastro-container">
+            <div className="cadastro-header">
+              <h2>CASAR</h2>
+              <h3>Meus Imóveis</h3>
+            </div>
 
         {error && <div className="error-message">{error}</div>}
 
@@ -138,14 +193,21 @@ export default function Imoveis() {
             <Link
               href="/imovel"
               className="btn btn-primary"
-              style={{ marginTop: "1rem" }}
+              style={{ marginTop: "1rem", color: "white" }}
             >
               Cadastrar Primeiro Imóvel
             </Link>
           </div>
         ) : (
           <>
-            <div style={{ marginBottom: "1rem", textAlign: "right" }}>
+            <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <Link
+                href="/anuncio"
+                className="btn btn-primary"
+                style={{ color: "white" }}
+              >
+                Cadastrar Anúncio
+              </Link>
               <Link
                 href="/imovel"
                 className="btn btn-primary"
@@ -160,16 +222,52 @@ export default function Imoveis() {
             >
               {properties.map((prop) => (
                 <div key={prop.id} className="card">
+                  {/* Header com imagem e informações principais */}
                   <div
+                    className="property-header-grid"
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
+                      display: "grid",
+                      gridTemplateColumns: prop.image_url ? "250px 1fr" : "1fr",
+                      gap: "1.5rem",
+                      marginBottom: "1rem",
                     }}
                   >
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ marginBottom: "0.5rem" }}>{prop.name}</h4>
-                      <p style={{ color: "#666", marginBottom: "0.5rem" }}>
+                    {(() => {
+                      const propertyImages = prop.images?.map((img: any) => img.image_url) || [];
+                      const firstImage = propertyImages[0] || prop.image_url;
+                      
+                      if (firstImage) {
+                        return (
+                          <div style={{ width: "100%" }}>
+                            <img
+                              src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${firstImage}`}
+                              alt={prop.name}
+                              style={{
+                                width: "100%",
+                                height: "200px",
+                                objectFit: "cover",
+                                borderRadius: "8px",
+                                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)"
+                              }}
+                            />
+                            {propertyImages.length > 1 && (
+                              <div style={{ 
+                                marginTop: "0.5rem", 
+                                fontSize: "0.875rem", 
+                                color: "#666",
+                                textAlign: "center"
+                              }}>
+                                +{propertyImages.length - 1} foto{propertyImages.length - 1 > 1 ? 's' : ''}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                    <div>
+                      <h4 style={{ marginBottom: "0.5rem", fontSize: "1.5rem", color: "#333" }}>{prop.name}</h4>
+                      <p style={{ color: "#666", marginBottom: "0.75rem", fontSize: "1rem" }}>
                         {formatType(prop.type)} • {prop.address}
                       </p>
                       <div
@@ -177,35 +275,47 @@ export default function Imoveis() {
                           display: "flex",
                           gap: "1rem",
                           flexWrap: "wrap",
-                          marginBottom: "0.5rem",
+                          marginBottom: "0.75rem",
+                          padding: "0.75rem",
+                          background: "#f9fafb",
+                          borderRadius: "6px",
                         }}
                       >
-                        <span>Vagas: {prop.total_vacancies}</span>
-                        <span>Quartos: {prop.total_dorms}</span>
-                        <span>Banheiros: {prop.total_bathrooms}</span>
-                        {prop.garage && <span>Garagem</span>}
-                        {prop.external_area && <span>Área Externa</span>}
+                        <span style={{ fontWeight: "500" }}>Vagas: {prop.total_vacancies}</span>
+                        <span style={{ fontWeight: "500" }}>Quartos: {prop.total_dorms}</span>
+                        <span style={{ fontWeight: "500" }}>Banheiros: {prop.total_bathrooms}</span>
+                        {prop.garage && <span style={{ fontWeight: "500" }}>✓ Garagem</span>}
+                        {prop.external_area && <span style={{ fontWeight: "500" }}>✓ Área Externa</span>}
                       </div>
-                      <p style={{ color: "#666", marginBottom: "0.5rem" }}>
+                      <p style={{ color: "#666", marginBottom: "0.5rem", fontSize: "1rem" }}>
                         <strong>Custos:</strong> {prop.costs}
                       </p>
-                      {prop.rules.length > 0 && (
-                        <div style={{ marginBottom: "0.5rem" }}>
-                          <strong>Regras:</strong>
-                          <ul
-                            style={{
-                              marginLeft: "1.5rem",
-                              marginTop: "0.25rem",
-                            }}
-                          >
-                            {prop.rules.map((r, idx) => (
-                              <li key={idx}>
-                                {r.name}: {r.value}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                    </div>
+                  </div>
+
+                  {/* Regras */}
+                  {prop.rules.length > 0 && (
+                    <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "#f9fafb", borderRadius: "6px" }}>
+                      <strong style={{ display: "block", marginBottom: "0.5rem" }}>Regras:</strong>
+                      <ul
+                        style={{
+                          marginLeft: "1.5rem",
+                          marginTop: "0.25rem",
+                          listStyle: "disc",
+                        }}
+                      >
+                        {prop.rules.map((r, idx) => (
+                          <li key={idx} style={{ marginBottom: "0.25rem" }}>
+                            {r.name}: {r.value}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Anúncios e Botões de Ação */}
+                  <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start" }}>
+                    <div style={{ flex: 1 }}>
                       {announcementsWithMatches[prop.id] && announcementsWithMatches[prop.id].length > 0 && (
                         <div style={{ marginTop: "1rem", padding: "1rem", background: "#f3f4f6", borderRadius: "8px" }}>
                           <strong style={{ display: "block", marginBottom: "0.5rem" }}>
@@ -224,21 +334,72 @@ export default function Imoveis() {
                                       ❤️ {matchesCount} match{matchesCount > 1 ? 'es' : ''} recebido{matchesCount > 1 ? 's' : ''}
                                     </div>
                                     <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
-                                      {ann.matches.map((m, idx) => (
-                                        <li key={idx} style={{ fontSize: "0.9rem", marginBottom: "0.25rem" }}>
-                                          <strong>Email:</strong> {m.users.email}
-                                          {m.users.name && (
-                                            <span style={{ color: "#666", marginLeft: "0.5rem" }}>
-                                              ({m.users.name})
-                                            </span>
-                                          )}
-                                          {m.accepted === true && (
-                                            <span style={{ color: "#059669", marginLeft: "0.5rem", fontWeight: "600" }}>
-                                              ✓ Aceito
-                                            </span>
-                                          )}
-                                        </li>
-                                      ))}
+                                      {ann.matches.map((m, idx) => {
+                                        const matchKey = `${ann.id_property}-${ann.number}-${m.users.id}`;
+                                        const isProcessing = processingMatches.has(matchKey);
+                                        const isAccepted = m.accepted === true;
+                                        
+                                        return (
+                                          <li key={idx} style={{ fontSize: "0.9rem", marginBottom: "0.75rem", padding: "0.5rem", background: isAccepted ? "#d1fae5" : "#f9fafb", borderRadius: "4px", border: "1px solid #e5e7eb" }}>
+                                            <div style={{ marginBottom: "0.5rem" }}>
+                                              <strong>Email:</strong> {m.users.email}
+                                              {m.users.name && (
+                                                <span style={{ color: "#666", marginLeft: "0.5rem" }}>
+                                                  ({m.users.name})
+                                                </span>
+                                              )}
+                                              {isAccepted && (
+                                                <>
+                                                  <span style={{ color: "#059669", marginLeft: "0.5rem", fontWeight: "600" }}>
+                                                    ✓ Aceito
+                                                  </span>
+                                                  {m.users.phone && (
+                                                    <div style={{ marginTop: "0.25rem", color: "#059669", fontWeight: "600" }}>
+                                                      📞 Telefone: {m.users.phone}
+                                                    </div>
+                                                  )}
+                                                </>
+                                              )}
+                                            </div>
+                                            {!isAccepted && (
+                                              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleAcceptMatch(ann.id_property, ann.number, m.users.id)}
+                                                  disabled={isProcessing}
+                                                  style={{
+                                                    padding: "4px 12px",
+                                                    background: "#059669",
+                                                    color: "white",
+                                                    border: "none",
+                                                    borderRadius: "4px",
+                                                    cursor: isProcessing ? "not-allowed" : "pointer",
+                                                    fontSize: "0.875rem"
+                                                  }}
+                                                >
+                                                  {isProcessing ? "Processando..." : "Aceitar"}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleRejectMatch(ann.id_property, ann.number, m.users.id)}
+                                                  disabled={isProcessing}
+                                                  style={{
+                                                    padding: "4px 12px",
+                                                    background: "#ef4444",
+                                                    color: "white",
+                                                    border: "none",
+                                                    borderRadius: "4px",
+                                                    cursor: isProcessing ? "not-allowed" : "pointer",
+                                                    fontSize: "0.875rem"
+                                                  }}
+                                                >
+                                                  {isProcessing ? "Processando..." : "Recusar"}
+                                                </button>
+                                              </div>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
                                     </ul>
                                   </div>
                                 ) : (
@@ -262,6 +423,7 @@ export default function Imoveis() {
                         display: "flex",
                         flexDirection: "column",
                         gap: "0.5rem",
+                        flexShrink: 0,
                       }}
                     >
                       <Link
@@ -318,7 +480,9 @@ export default function Imoveis() {
             Voltar para Conta
           </button>
         </div>
-      </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

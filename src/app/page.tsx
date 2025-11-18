@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { announcement, user, match } from "../utils/api";
+import { announcement, user, match, property } from "../utils/api";
+import Navbar from "../components/Navbar";
 
 type Announcement = {
   id_property: string;
@@ -14,11 +15,23 @@ type Announcement = {
   boost: boolean | null;
   vacancies: number;
   created_at: string | null;
+  image_url?: string | null;
+  images?: Array<{
+    image_url: string;
+  }>;
   property: {
     id: string;
     name: string;
     type: string;
     address: string;
+    image_url?: string | null;
+    images?: Array<{
+      image_url: string;
+    }>;
+    participation?: Array<{
+      id_user: string;
+      admin: boolean;
+    }>;
     rule: Array<{
       attribute: {
         name: string;
@@ -34,6 +47,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userMatches, setUserMatches] = useState<Array<{ id_user: string; id_property: string; number_announcement: number; [key: string]: any }>>([]);
+  const [userProperties, setUserProperties] = useState<Array<{ id: string }>>([]);
   const [matchingIds, setMatchingIds] = useState<Set<string>>(new Set());
   const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
 
@@ -46,9 +61,36 @@ export default function Home() {
     try {
       const userData = await user.me();
       setCurrentUser(userData);
+      // Carregar matches e propriedades do usuário
+      await Promise.all([
+        loadUserMatches(),
+        loadUserProperties()
+      ]);
     } catch (err) {
       // Usuário não está autenticado, não faz nada
       setCurrentUser(null);
+      setUserMatches([]);
+      setUserProperties([]);
+    }
+  };
+
+  const loadUserProperties = async () => {
+    try {
+      const properties = await property.list();
+      setUserProperties(properties || []);
+    } catch (err) {
+      console.error("Erro ao carregar propriedades:", err);
+      setUserProperties([]);
+    }
+  };
+
+  const loadUserMatches = async () => {
+    try {
+      const matches = await match.getAll();
+      setUserMatches(matches || []);
+    } catch (err) {
+      console.error("Erro ao carregar matches:", err);
+      setUserMatches([]);
     }
   };
 
@@ -59,8 +101,11 @@ export default function Home() {
       // Usa a rota pública que não requer autenticação
       const data = await announcement.listPublic();
       
+      // Garantir que data é um array
+      const announcementsArray = Array.isArray(data) ? data : [];
+      
       // Backend já ordena por boost e data, mas garantimos aqui também
-      const sorted = [...data].sort((a, b) => {
+      const sorted = [...announcementsArray].sort((a, b) => {
         const aBoost = a.boost === true ? 1 : 0;
         const bBoost = b.boost === true ? 1 : 0;
         if (aBoost !== bBoost) {
@@ -92,6 +137,19 @@ export default function Home() {
     return map[type] || type;
   };
 
+  const hasMatch = (propertyId: string, number: number): boolean => {
+    return userMatches.some(
+      m => m.id_property === propertyId && m.number_announcement === number
+    );
+  };
+
+  const getMatchUserId = (propertyId: string, number: number): string | null => {
+    const match = userMatches.find(
+      m => m.id_property === propertyId && m.number_announcement === number
+    );
+    return match ? match.id_user : null;
+  };
+
   const handleMatch = async (propertyId: string, number: number) => {
     if (!currentUser) {
       router.push('/login');
@@ -99,18 +157,32 @@ export default function Home() {
     }
 
     const matchKey = `${propertyId}-${number}`;
+    const isMatched = hasMatch(propertyId, number);
+    
     setMatchingIds(prev => new Set(prev).add(matchKey));
     setError(null);
     setMatchSuccess(null);
 
     try {
-      await match.create({ id_property: propertyId, number_announcement: number });
-      setMatchSuccess(matchKey);
-      setTimeout(() => setMatchSuccess(null), 3000);
-      // Recarregar anúncios para atualizar a lista
-      await loadAnnouncements();
+      if (isMatched) {
+        // Deletar match existente
+        const matchUserId = getMatchUserId(propertyId, number);
+        if (matchUserId) {
+          await match.delete(propertyId, number, matchUserId);
+          setMatchSuccess(null);
+          // Recarregar matches
+          await loadUserMatches();
+        }
+      } else {
+        // Criar novo match
+        await match.create({ id_property: propertyId, number_announcement: number });
+        setMatchSuccess(matchKey);
+        setTimeout(() => setMatchSuccess(null), 3000);
+        // Recarregar matches
+        await loadUserMatches();
+      }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao registrar match');
+      setError(err?.response?.data?.error || err?.message || (isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
     } finally {
       setMatchingIds(prev => {
         const newSet = new Set(prev);
@@ -122,16 +194,7 @@ export default function Home() {
 
   return (
     <div className="app">
-      <header className="app-header">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1>CASAR</h1>
-          <nav className="nav-menu">
-            <Link className="nav-link" href="/cadastro">Cadastro</Link>
-            <Link className="nav-link" href="/login">Login</Link>
-            <Link className="nav-link" href="/">Home</Link>
-          </nav>
-        </div>
-      </header>
+      <Navbar />
 
       <main className="app-main">
         <section style={{ maxWidth: 1200, margin: "1.5rem auto", padding: "0 1rem" }}>
@@ -164,9 +227,33 @@ export default function Home() {
                   }}
                 >
                   <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                    <div style={{ width: 220, height: 140, background: "#f0f0f0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#999", flexShrink: 0 }}>
-                      Foto do imóvel
-                    </div>
+                    {(() => {
+                      // Prioridade: imagens do anúncio > primeira imagem do anúncio > imagens da propriedade > primeira imagem da propriedade
+                      const announcementImages = ann.images?.map((img: any) => img.image_url) || [];
+                      const propertyImages = ann.property?.images?.map((img: any) => img.image_url) || [];
+                      const firstImage = announcementImages[0] || ann.image_url || propertyImages[0] || ann.property?.image_url;
+                      
+                      if (firstImage) {
+                        return (
+                          <img
+                            src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${firstImage}`}
+                            alt={ann.title}
+                            style={{
+                              width: 220,
+                              height: 140,
+                              objectFit: "cover",
+                              borderRadius: 8,
+                              flexShrink: 0
+                            }}
+                          />
+                        );
+                      }
+                      return (
+                        <div style={{ width: 220, height: 140, background: "#f0f0f0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#999", flexShrink: 0 }}>
+                          Sem foto
+                        </div>
+                      );
+                    })()}
 
                     <div style={{ flex: 1 }}>
                       <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
@@ -217,38 +304,55 @@ export default function Home() {
                           </span>
                         )}
                         {currentUser ? (
-                          <button
-                            type="button"
-                            onClick={() => handleMatch(ann.id_property, ann.number)}
-                            disabled={matchingIds.has(`${ann.id_property}-${ann.number}`)}
-                            style={{
-                              fontSize: "1.5rem",
-                              background: "none",
-                              border: "none",
-                              cursor: matchingIds.has(`${ann.id_property}-${ann.number}`) ? "default" : "pointer",
-                              color: "#9ca3af",
-                              transition: "transform 0.2s",
-                              padding: "0.5rem",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center"
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!matchingIds.has(`${ann.id_property}-${ann.number}`)) {
-                                e.currentTarget.style.transform = "scale(1.2)";
-                                e.currentTarget.style.color = "#ef4444";
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!matchingIds.has(`${ann.id_property}-${ann.number}`)) {
-                                e.currentTarget.style.transform = "scale(1)";
-                                e.currentTarget.style.color = "#9ca3af";
-                              }
-                            }}
-                            title="Dar match neste anúncio"
-                          >
-                            {matchingIds.has(`${ann.id_property}-${ann.number}`) ? "⏳" : "🤍"}
-                          </button>
+                          (() => {
+                            // Verificar se o usuário é admin do imóvel
+                            // Primeiro tenta pela participation (se disponível), senão verifica pelas propriedades do usuário
+                            const isAdmin = ann.property?.participation?.some(
+                              (p: any) => p.id_user === currentUser.id && p.admin === true
+                            ) || userProperties.some(p => p.id === ann.id_property);
+                            
+                            // Se for admin, não mostrar o botão de match
+                            if (isAdmin) {
+                              return null;
+                            }
+
+                            const isMatched = hasMatch(ann.id_property, ann.number);
+                            const isProcessing = matchingIds.has(`${ann.id_property}-${ann.number}`);
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => handleMatch(ann.id_property, ann.number)}
+                                disabled={isProcessing}
+                                style={{
+                                  fontSize: "1.5rem",
+                                  background: "none",
+                                  border: "none",
+                                  cursor: isProcessing ? "default" : "pointer",
+                                  color: isMatched ? "#ef4444" : "#9ca3af",
+                                  transition: "transform 0.2s",
+                                  padding: "0.5rem",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center"
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!isProcessing) {
+                                    e.currentTarget.style.transform = "scale(1.2)";
+                                    e.currentTarget.style.color = isMatched ? "#dc2626" : "#ef4444";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isProcessing) {
+                                    e.currentTarget.style.transform = "scale(1)";
+                                    e.currentTarget.style.color = isMatched ? "#ef4444" : "#9ca3af";
+                                  }
+                                }}
+                                title={isMatched ? "Remover match deste anúncio" : "Dar match neste anúncio"}
+                              >
+                                {isProcessing ? "⏳" : isMatched ? "❤️" : "🤍"}
+                              </button>
+                            );
+                          })()
                         ) : (
                           <button
                             type="button"

@@ -90,6 +90,12 @@ export default function CadastroImovel() {
         setError("Todas as regras devem ter nome e valor preenchidos");
         return false;
       }
+      // Validar que campos múltiplos têm pelo menos um valor selecionado
+      const isMultiple = r.name === "Hobbies" || r.name === "Estilo de Convivência";
+      if (isMultiple && (!r.value || r.value.trim() === "")) {
+        setError(`A regra "${r.name}" deve ter pelo menos um valor selecionado`);
+        return false;
+      }
     }
     setError(null);
     return true;
@@ -304,24 +310,75 @@ export default function CadastroImovel() {
                     </option>
                   ))}
                 </select>
-                {r.name && model && (
-                  <select
-                    className="form-select"
-                    style={{ flex: 1 }}
-                    value={r.value}
-                    onChange={(e) => updateRule(index, "value", e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>
-                      Selecione o valor
-                    </option>
-                    {model[r.name]?.expected.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
+                {r.name && model && (() => {
+                  const fieldConfig = model[r.name];
+                  const isMultiple = r.name === "Hobbies" || r.name === "Estilo de Convivência";
+                  const currentValues = r.value ? r.value.split(", ") : [];
+                  
+                  if (isMultiple && fieldConfig?.expected) {
+                    return (
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <div style={{ 
+                          display: "grid", 
+                          gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", 
+                          gap: "8px",
+                          padding: "8px",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "4px",
+                          maxHeight: "150px",
+                          overflowY: "auto"
+                        }}>
+                          {fieldConfig.expected.map((opt) => {
+                            const isChecked = currentValues.includes(opt);
+                            return (
+                              <label key={opt} style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    let newValues: string[];
+                                    if (e.target.checked) {
+                                      newValues = [...currentValues, opt];
+                                    } else {
+                                      newValues = currentValues.filter(v => v !== opt);
+                                    }
+                                    updateRule(index, "value", newValues.join(", "));
+                                  }}
+                                />
+                                <span style={{ fontSize: "0.9rem" }}>{opt}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {currentValues.length > 0 && (
+                          <div style={{ fontSize: "0.875rem", color: "#666" }}>
+                            Selecionados: {currentValues.join(", ")}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  
+                  // Campo único - usar select
+                  return (
+                    <select
+                      className="form-select"
+                      style={{ flex: 1 }}
+                      value={r.value}
+                      onChange={(e) => updateRule(index, "value", e.target.value)}
+                      required
+                    >
+                      <option value="" disabled>
+                        Selecione o valor
                       </option>
-                    ))}
-                  </select>
-                )}
+                      {fieldConfig?.expected.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => removeRule(index)}

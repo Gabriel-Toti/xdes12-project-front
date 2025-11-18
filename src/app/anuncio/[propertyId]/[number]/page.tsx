@@ -5,6 +5,156 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { announcement, user, match } from "@/utils/api";
 
+function ImageCarousel({ images, title }: { images: string[]; title: string }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const nextImage = () => {
+    setCurrentIndex((prev) => (prev + 1) % images.length);
+  };
+
+  const prevImage = () => {
+    setCurrentIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  const goToImage = (index: number) => {
+    setCurrentIndex(index);
+  };
+
+  if (images.length === 0) return null;
+
+  if (images.length === 1) {
+    return (
+      <div style={{ marginBottom: "1.5rem" }}>
+        <img
+          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${images[0]}`}
+          alt={title}
+          style={{
+            width: "100%",
+            maxHeight: "500px",
+            objectFit: "cover",
+            borderRadius: "8px",
+            border: "1px solid #e5e7eb"
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: "1.5rem", position: "relative" }}>
+      <div style={{ position: "relative", width: "100%", borderRadius: "8px", overflow: "hidden", border: "1px solid #e5e7eb" }}>
+        <img
+          src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${images[currentIndex]}`}
+          alt={`${title} - Imagem ${currentIndex + 1}`}
+          style={{
+            width: "100%",
+            height: "500px",
+            objectFit: "cover",
+            display: "block"
+          }}
+        />
+        
+        {/* Botões de navegação */}
+        <button
+          onClick={prevImage}
+          style={{
+            position: "absolute",
+            left: "16px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            background: "rgba(0, 0, 0, 0.6)",
+            color: "white",
+            border: "none",
+            borderRadius: "50%",
+            width: "48px",
+            height: "48px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "24px",
+            fontWeight: "bold",
+            zIndex: 2
+          }}
+          aria-label="Imagem anterior"
+        >
+          ‹
+        </button>
+        
+        <button
+          onClick={nextImage}
+          style={{
+            position: "absolute",
+            right: "16px",
+            top: "50%",
+            transform: "translateY(-50%)",
+            background: "rgba(0, 0, 0, 0.6)",
+            color: "white",
+            border: "none",
+            borderRadius: "50%",
+            width: "48px",
+            height: "48px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "24px",
+            fontWeight: "bold",
+            zIndex: 2
+          }}
+          aria-label="Próxima imagem"
+        >
+          ›
+        </button>
+
+        {/* Indicadores */}
+        <div style={{
+          position: "absolute",
+          bottom: "16px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex",
+          gap: "8px",
+          zIndex: 2
+        }}>
+          {images.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => goToImage(idx)}
+              style={{
+                width: currentIndex === idx ? "24px" : "12px",
+                height: "12px",
+                borderRadius: "6px",
+                border: "none",
+                background: currentIndex === idx ? "white" : "rgba(255, 255, 255, 0.5)",
+                cursor: "pointer",
+                transition: "all 0.3s ease"
+              }}
+              aria-label={`Ir para imagem ${idx + 1}`}
+            />
+          ))}
+        </div>
+
+        {/* Contador */}
+        <div style={{
+          position: "absolute",
+          top: "16px",
+          right: "16px",
+          background: "rgba(0, 0, 0, 0.6)",
+          color: "white",
+          padding: "8px 16px",
+          borderRadius: "20px",
+          fontSize: "14px",
+          fontWeight: "500",
+          zIndex: 2
+        }}>
+          {currentIndex + 1} / {images.length}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function VerAnuncio() {
   const router = useRouter();
   const params = useParams();
@@ -13,6 +163,7 @@ export default function VerAnuncio() {
 
   const [announcementData, setAnnouncementData] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userMatches, setUserMatches] = useState<Array<{ id_user: string; id_property: string; number_announcement: number; [key: string]: any }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,10 +177,11 @@ export default function VerAnuncio() {
     setLoading(true);
     setError(null);
     try {
-      // Carregar anúncio e usuário atual em paralelo
-      const [announcementDataResult, userResult] = await Promise.allSettled([
+      // Carregar anúncio, usuário atual e matches em paralelo
+      const [announcementDataResult, userResult, matchesResult] = await Promise.allSettled([
         announcement.get(propertyId, number),
-        user.me().catch(() => null) // Se não estiver autenticado, retorna null
+        user.me().catch(() => null), // Se não estiver autenticado, retorna null
+        match.getAll().catch(() => []) // Se não estiver autenticado, retorna array vazio
       ]);
 
       if (announcementDataResult.status === 'fulfilled') {
@@ -47,6 +199,10 @@ export default function VerAnuncio() {
       if (userResult.status === 'fulfilled' && userResult.value) {
         setCurrentUser(userResult.value);
       }
+
+      if (matchesResult.status === 'fulfilled') {
+        setUserMatches(matchesResult.value || []);
+      }
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "Erro ao carregar dados");
     } finally {
@@ -55,7 +211,20 @@ export default function VerAnuncio() {
   };
 
   const [isMatching, setIsMatching] = useState(false);
-  const [matchSuccess, setMatchSuccess] = useState(false);
+  const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
+
+  const hasMatch = (): boolean => {
+    return userMatches.some(
+      m => m.id_property === propertyId && m.number_announcement === number
+    );
+  };
+
+  const getMatchUserId = (): string | null => {
+    const match = userMatches.find(
+      m => m.id_property === propertyId && m.number_announcement === number
+    );
+    return match ? match.id_user : null;
+  };
 
   const handleMatch = async () => {
     if (!currentUser) {
@@ -63,17 +232,33 @@ export default function VerAnuncio() {
       return;
     }
 
+    const isMatched = hasMatch();
     setIsMatching(true);
     setError(null);
-    setMatchSuccess(false);
+    setMatchSuccess(null);
 
     try {
-      await match.create({ id_property: propertyId, number_announcement: number });
-      setMatchSuccess(true);
-      await loadData();
-      setTimeout(() => setMatchSuccess(false), 3000);
+      if (isMatched) {
+        // Deletar match existente
+        const matchUserId = getMatchUserId();
+        if (matchUserId) {
+          await match.delete(propertyId, number, matchUserId);
+          setMatchSuccess(null);
+          // Recarregar matches
+          const updatedMatches = await match.getAll().catch(() => []);
+          setUserMatches(updatedMatches || []);
+        }
+      } else {
+        // Criar novo match
+        await match.create({ id_property: propertyId, number_announcement: number });
+        setMatchSuccess("created");
+        setTimeout(() => setMatchSuccess(null), 3000);
+        // Recarregar matches
+        const updatedMatches = await match.getAll().catch(() => []);
+        setUserMatches(updatedMatches || []);
+      }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao registrar match');
+      setError(err?.response?.data?.error || err?.message || (isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
     } finally {
       setIsMatching(false);
     }
@@ -153,6 +338,22 @@ export default function VerAnuncio() {
         </div>
 
         <div className="cadastro-form">
+          {(() => {
+            // Prioridade: imagens do anúncio > primeira imagem do anúncio > imagens da propriedade > primeira imagem da propriedade
+            const announcementImages = announcementData.images?.map((img: any) => img.image_url) || [];
+            const propertyImages = property?.images?.map((img: any) => img.image_url) || [];
+            const allImages = [
+              ...announcementImages,
+              ...(announcementData.image_url && !announcementImages.includes(announcementData.image_url) ? [announcementData.image_url] : []),
+              ...propertyImages,
+              ...(property?.image_url && !propertyImages.includes(property.image_url) && !announcementImages.includes(property.image_url) ? [property.image_url] : [])
+            ].filter(Boolean);
+
+            if (allImages.length > 0) {
+              return <ImageCarousel images={allImages} title={announcementData.title} />;
+            }
+            return null;
+          })()}
           <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
             <h4 style={{ marginBottom: "1rem" }}>Informações do Anúncio</h4>
             {announcementData.description && (
@@ -195,7 +396,7 @@ export default function VerAnuncio() {
             )}
           </div>
 
-          {matchSuccess && (
+          {matchSuccess === "created" && (
             <div className="success-message" style={{ marginBottom: "1rem", padding: "1rem", background: "#d1fae5", color: "#065f46", borderRadius: "8px" }}>
               ✓ Match realizado com sucesso! Seu email foi registrado.
             </div>
@@ -206,38 +407,43 @@ export default function VerAnuncio() {
             {!isAdmin && (
               <>
                 {currentUser ? (
-                  <button
-                    type="button"
-                    onClick={handleMatch}
-                    disabled={isMatching || announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id)}
-                    style={{
-                      fontSize: "2rem",
-                      background: "none",
-                      border: "none",
-                      cursor: announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) ? "default" : "pointer",
-                      color: announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) ? "#ef4444" : "#9ca3af",
-                      transition: "transform 0.2s",
-                      padding: "0.5rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center"
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) && !isMatching) {
-                        e.currentTarget.style.transform = "scale(1.2)";
-                        e.currentTarget.style.color = "#ef4444";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) && !isMatching) {
-                        e.currentTarget.style.transform = "scale(1)";
-                        e.currentTarget.style.color = "#9ca3af";
-                      }
-                    }}
-                    title={announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) ? "Você já deu match neste anúncio" : "Dar match neste anúncio"}
-                  >
-                    {isMatching ? "⏳" : announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) ? "❤️" : "🤍"}
-                  </button>
+                  (() => {
+                    const isMatched = hasMatch();
+                    return (
+                      <button
+                        type="button"
+                        onClick={handleMatch}
+                        disabled={isMatching}
+                        style={{
+                          fontSize: "2rem",
+                          background: "none",
+                          border: "none",
+                          cursor: isMatching ? "default" : "pointer",
+                          color: isMatched ? "#ef4444" : "#9ca3af",
+                          transition: "transform 0.2s",
+                          padding: "0.5rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isMatching) {
+                            e.currentTarget.style.transform = "scale(1.2)";
+                            e.currentTarget.style.color = isMatched ? "#dc2626" : "#ef4444";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isMatching) {
+                            e.currentTarget.style.transform = "scale(1)";
+                            e.currentTarget.style.color = isMatched ? "#ef4444" : "#9ca3af";
+                          }
+                        }}
+                        title={isMatched ? "Remover match deste anúncio" : "Dar match neste anúncio"}
+                      >
+                        {isMatching ? "⏳" : isMatched ? "❤️" : "🤍"}
+                      </button>
+                    );
+                  })()
                 ) : (
                   <button
                     type="button"

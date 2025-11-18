@@ -20,6 +20,9 @@ export default function EditarAnuncio() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [images, setImages] = useState<Array<{ id: string; image_url: string }>>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
 
   const maxDesc = 128;
 
@@ -40,6 +43,12 @@ export default function EditarAnuncio() {
       setValor(data.average_cost || "");
       setBoost(data.boost === true);
       setVagas(data.vacancies || "");
+      // Carregar imagens do anúncio com IDs
+      const loadedImages = data.images?.map((img: any) => ({
+        id: img.id,
+        image_url: img.image_url
+      })) || [];
+      setImages(loadedImages);
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
@@ -88,6 +97,66 @@ export default function EditarAnuncio() {
     }
     setError(null);
     return true;
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    
+    // Validar todos os arquivos
+    for (const file of fileArray) {
+      if (!file.type.startsWith('image/')) {
+        setError("Por favor, selecione apenas arquivos de imagem");
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        setError("Cada imagem deve ter no máximo 5MB");
+        return;
+      }
+    }
+
+    setUploadingImage(true);
+    setError(null);
+    try {
+      const result = await announcement.uploadImage(propertyId, number, fileArray);
+      // Recarregar anúncio para obter os IDs das novas imagens
+      const data = await announcement.get(propertyId, number);
+      const loadedImages = data.images?.map((img: any) => ({
+        id: img.id,
+        image_url: img.image_url
+      })) || [];
+      setImages(loadedImages);
+      setSuccess(`${result.count} imagem(ns) enviada(s) com sucesso!`);
+      setTimeout(() => setSuccess(null), 3000);
+      // Limpar o input
+      e.target.value = '';
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || "Erro ao enviar imagens");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!confirm("Tem certeza que deseja deletar esta imagem?")) {
+      return;
+    }
+
+    setDeletingImageId(imageId);
+    setError(null);
+    try {
+      await announcement.deleteImage(propertyId, number, imageId);
+      setImages(prev => prev.filter(img => img.id !== imageId));
+      setSuccess("Imagem deletada com sucesso!");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || "Erro ao deletar imagem");
+    } finally {
+      setDeletingImageId(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -228,6 +297,71 @@ export default function EditarAnuncio() {
             </label>
             <p style={{ fontSize: "0.875rem", color: "#666", marginTop: "4px" }}>
               Anúncios com boost aparecem primeiro na listagem
+            </p>
+          </div>
+
+          <div className="form-group" style={{ marginTop: "2rem" }}>
+            <label className="form-label">Imagens do Anúncio</label>
+            {images.length > 0 && (
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", 
+                gap: "1rem", 
+                marginBottom: "1rem" 
+              }}>
+                {images.map((img) => (
+                  <div key={img.id} style={{ position: "relative" }}>
+                    <img
+                      src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${img.image_url}`}
+                      alt={`Imagem do anúncio`}
+                      style={{
+                        width: "100%",
+                        height: "200px",
+                        objectFit: "cover",
+                        borderRadius: "8px",
+                        border: "1px solid #e5e7eb"
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteImage(img.id)}
+                      disabled={deletingImageId === img.id}
+                      style={{
+                        position: "absolute",
+                        top: "8px",
+                        right: "8px",
+                        background: "rgba(220, 38, 38, 0.9)",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "50%",
+                        width: "32px",
+                        height: "32px",
+                        cursor: deletingImageId === img.id ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "18px",
+                        fontWeight: "bold"
+                      }}
+                      title="Deletar imagem"
+                    >
+                      {deletingImageId === img.id ? "..." : "×"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageUpload}
+              disabled={uploadingImage}
+              style={{ marginBottom: "0.5rem" }}
+            />
+            {uploadingImage && <div style={{ color: "#666" }}>Enviando imagens...</div>}
+            <p style={{ fontSize: "0.875rem", color: "#666" }}>
+              Você pode selecionar múltiplas imagens (máximo 10, 5MB cada). Formatos aceitos: JPG, PNG, GIF.
             </p>
           </div>
 
