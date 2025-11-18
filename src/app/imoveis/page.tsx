@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { property } from "@/utils/api";
+import { property, announcement, match } from "@/utils/api";
 
 type Property = {
   id: string;
@@ -21,9 +21,24 @@ type Property = {
   active_announcements: number;
 };
 
+type AnnouncementWithMatches = {
+  id_property: string;
+  number: number;
+  title: string;
+  matches: Array<{
+    users: {
+      id: string;
+      name: string;
+      email: string;
+    };
+    accepted: boolean | null;
+  }>;
+};
+
 export default function Imoveis() {
   const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);
+  const [announcementsWithMatches, setAnnouncementsWithMatches] = useState<Record<string, AnnouncementWithMatches[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -38,20 +53,39 @@ export default function Imoveis() {
     try {
       const data = await property.list();
       setProperties(data);
+      
+      // Carregar anúncios e matches para cada imóvel
+      const announcementsMap: Record<string, AnnouncementWithMatches[]> = {};
+      for (const prop of data) {
+        try {
+          const announcements = await announcement.list(prop.id);
+          announcementsMap[prop.id] = announcements;
+        } catch (err) {
+          console.error(`Erro ao carregar anúncios do imóvel ${prop.id}:`, err);
+          announcementsMap[prop.id] = [];
+        }
+      }
+      setAnnouncementsWithMatches(announcementsMap);
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
         router.push("/login");
         return;
       }
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar imóveis");
+      setError(
+        err?.response?.data?.error || err?.message || "Erro ao carregar imóveis"
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este imóvel? Esta ação não pode ser desfeita.")) {
+    if (
+      !confirm(
+        "Tem certeza que deseja excluir este imóvel? Esta ação não pode ser desfeita."
+      )
+    ) {
       return;
     }
 
@@ -60,7 +94,8 @@ export default function Imoveis() {
       await property.delete(id);
       await loadProperties();
     } catch (err: any) {
-      const message = err?.response?.data?.error || err?.message || "Erro ao excluir imóvel";
+      const message =
+        err?.response?.data?.error || err?.message || "Erro ao excluir imóvel";
       alert(message);
     } finally {
       setDeletingId(null);
@@ -72,7 +107,7 @@ export default function Imoveis() {
       CASA: "Casa",
       APARTAMENTO: "Apartamento",
       REPUBLICA: "República",
-      PENSAO: "Pensão"
+      PENSAO: "Pensão",
     };
     return map[type] || type;
   };
@@ -100,28 +135,51 @@ export default function Imoveis() {
         {properties.length === 0 ? (
           <div style={{ textAlign: "center", padding: "2rem" }}>
             <p>Você ainda não possui imóveis cadastrados.</p>
-            <Link href="/imovel" className="btn btn-primary" style={{ marginTop: "1rem" }}>
+            <Link
+              href="/imovel"
+              className="btn btn-primary"
+              style={{ marginTop: "1rem" }}
+            >
               Cadastrar Primeiro Imóvel
             </Link>
           </div>
         ) : (
           <>
             <div style={{ marginBottom: "1rem", textAlign: "right" }}>
-              <Link href="/imovel" className="btn btn-primary" style={{ color: "white" }}>
+              <Link
+                href="/imovel"
+                className="btn btn-primary"
+                style={{ color: "white" }}
+              >
                 Cadastrar Novo Imóvel
               </Link>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+            >
               {properties.map((prop) => (
                 <div key={prop.id} className="card">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                    }}
+                  >
                     <div style={{ flex: 1 }}>
                       <h4 style={{ marginBottom: "0.5rem" }}>{prop.name}</h4>
                       <p style={{ color: "#666", marginBottom: "0.5rem" }}>
                         {formatType(prop.type)} • {prop.address}
                       </p>
-                      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "1rem",
+                          flexWrap: "wrap",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
                         <span>Vagas: {prop.total_vacancies}</span>
                         <span>Quartos: {prop.total_dorms}</span>
                         <span>Banheiros: {prop.total_bathrooms}</span>
@@ -134,7 +192,12 @@ export default function Imoveis() {
                       {prop.rules.length > 0 && (
                         <div style={{ marginBottom: "0.5rem" }}>
                           <strong>Regras:</strong>
-                          <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                          <ul
+                            style={{
+                              marginLeft: "1.5rem",
+                              marginTop: "0.25rem",
+                            }}
+                          >
                             {prop.rules.map((r, idx) => (
                               <li key={idx}>
                                 {r.name}: {r.value}
@@ -143,13 +206,64 @@ export default function Imoveis() {
                           </ul>
                         </div>
                       )}
-                      {prop.active_announcements > 0 && (
-                        <p style={{ color: "#d97706", marginBottom: "0.5rem" }}>
-                          ⚠ {prop.active_announcements} anúncio(s) ativo(s)
+                      {announcementsWithMatches[prop.id] && announcementsWithMatches[prop.id].length > 0 && (
+                        <div style={{ marginTop: "1rem", padding: "1rem", background: "#f3f4f6", borderRadius: "8px" }}>
+                          <strong style={{ display: "block", marginBottom: "0.5rem" }}>
+                            Anúncios e Matches Recebidos:
+                          </strong>
+                          {announcementsWithMatches[prop.id].map((ann) => {
+                            const matchesCount = ann.matches?.length || 0;
+                            return (
+                              <div key={`${ann.id_property}-${ann.number}`} style={{ marginBottom: "1rem", padding: "0.75rem", background: "white", borderRadius: "6px", border: "1px solid #e5e7eb" }}>
+                                <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>
+                                  {ann.title}
+                                </div>
+                                {matchesCount > 0 ? (
+                                  <div>
+                                    <div style={{ color: "#059669", fontWeight: "600", marginBottom: "0.5rem" }}>
+                                      ❤️ {matchesCount} match{matchesCount > 1 ? 'es' : ''} recebido{matchesCount > 1 ? 's' : ''}
+                                    </div>
+                                    <ul style={{ marginLeft: "1.5rem", marginTop: "0.25rem" }}>
+                                      {ann.matches.map((m, idx) => (
+                                        <li key={idx} style={{ fontSize: "0.9rem", marginBottom: "0.25rem" }}>
+                                          <strong>Email:</strong> {m.users.email}
+                                          {m.users.name && (
+                                            <span style={{ color: "#666", marginLeft: "0.5rem" }}>
+                                              ({m.users.name})
+                                            </span>
+                                          )}
+                                          {m.accepted === true && (
+                                            <span style={{ color: "#059669", marginLeft: "0.5rem", fontWeight: "600" }}>
+                                              ✓ Aceito
+                                            </span>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : (
+                                  <div style={{ color: "#9ca3af", fontSize: "0.9rem" }}>
+                                    Nenhum match recebido ainda
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {(!announcementsWithMatches[prop.id] || announcementsWithMatches[prop.id].length === 0) && (
+                        <p style={{ color: "#9ca3af", marginTop: "0.5rem", fontSize: "0.9rem" }}>
+                          Nenhum anúncio cadastrado para este imóvel
                         </p>
                       )}
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.5rem",
+                      }}
+                    >
                       <Link
                         href={`/imovel/${prop.id}`}
                         className="btn btn-primary"
@@ -160,9 +274,16 @@ export default function Imoveis() {
                       <button
                         onClick={() => handleDelete(prop.id)}
                         className="btn btn-secondary"
-                        disabled={deletingId === prop.id || prop.active_announcements > 0}
+                        disabled={
+                          deletingId === prop.id ||
+                          prop.active_announcements > 0
+                        }
                         style={{ padding: "8px 16px" }}
-                        title={prop.active_announcements > 0 ? "Não é possível excluir imóvel com anúncios ativos" : ""}
+                        title={
+                          prop.active_announcements > 0
+                            ? "Não é possível excluir imóvel com anúncios ativos"
+                            : ""
+                        }
                       >
                         {deletingId === prop.id ? "Excluindo..." : "Excluir"}
                       </button>
@@ -173,7 +294,15 @@ export default function Imoveis() {
             </div>
 
             {properties.length >= 5 && (
-              <div style={{ marginTop: "1rem", padding: "1rem", background: "#fef3c7", borderRadius: "8px", color: "#92400e" }}>
+              <div
+                style={{
+                  marginTop: "1rem",
+                  padding: "1rem",
+                  background: "#fef3c7",
+                  borderRadius: "8px",
+                  color: "#92400e",
+                }}
+              >
                 ⚠ Você atingiu o limite de 5 imóveis cadastrados.
               </div>
             )}
@@ -193,4 +322,3 @@ export default function Imoveis() {
     </div>
   );
 }
-

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { announcement } from "../utils/api";
+import { announcement, user, match } from "../utils/api";
 
 type Announcement = {
   id_property: string;
@@ -33,10 +33,24 @@ export default function Home() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [matchingIds, setMatchingIds] = useState<Set<string>>(new Set());
+  const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     loadAnnouncements();
+    loadCurrentUser();
   }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const userData = await user.me();
+      setCurrentUser(userData);
+    } catch (err) {
+      // Usuário não está autenticado, não faz nada
+      setCurrentUser(null);
+    }
+  };
 
   const loadAnnouncements = async () => {
     setLoading(true);
@@ -76,6 +90,34 @@ export default function Home() {
       PENSAO: "Pensão"
     };
     return map[type] || type;
+  };
+
+  const handleMatch = async (propertyId: string, number: number) => {
+    if (!currentUser) {
+      router.push('/login');
+      return;
+    }
+
+    const matchKey = `${propertyId}-${number}`;
+    setMatchingIds(prev => new Set(prev).add(matchKey));
+    setError(null);
+    setMatchSuccess(null);
+
+    try {
+      await match.create({ id_property: propertyId, number_announcement: number });
+      setMatchSuccess(matchKey);
+      setTimeout(() => setMatchSuccess(null), 3000);
+      // Recarregar anúncios para atualizar a lista
+      await loadAnnouncements();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erro ao registrar match');
+    } finally {
+      setMatchingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(matchKey);
+        return newSet;
+      });
+    }
   };
 
   return (
@@ -161,7 +203,62 @@ export default function Home() {
                         </div>
                       </div>
 
-                      <div style={{ marginTop: 12 }}>
+                      <div style={{ marginTop: 12, display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        {matchSuccess === `${ann.id_property}-${ann.number}` && (
+                          <span style={{ 
+                            fontSize: "0.75rem", 
+                            color: "#059669", 
+                            fontWeight: "600",
+                            padding: "4px 8px",
+                            background: "#d1fae5",
+                            borderRadius: "4px"
+                          }}>
+                            ✓ Match realizado!
+                          </span>
+                        )}
+                        {currentUser ? (
+                          <button
+                            type="button"
+                            onClick={() => handleMatch(ann.id_property, ann.number)}
+                            disabled={matchingIds.has(`${ann.id_property}-${ann.number}`)}
+                            style={{
+                              fontSize: "1.5rem",
+                              background: "none",
+                              border: "none",
+                              cursor: matchingIds.has(`${ann.id_property}-${ann.number}`) ? "default" : "pointer",
+                              color: "#9ca3af",
+                              transition: "transform 0.2s",
+                              padding: "0.5rem",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center"
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!matchingIds.has(`${ann.id_property}-${ann.number}`)) {
+                                e.currentTarget.style.transform = "scale(1.2)";
+                                e.currentTarget.style.color = "#ef4444";
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!matchingIds.has(`${ann.id_property}-${ann.number}`)) {
+                                e.currentTarget.style.transform = "scale(1)";
+                                e.currentTarget.style.color = "#9ca3af";
+                              }
+                            }}
+                            title="Dar match neste anúncio"
+                          >
+                            {matchingIds.has(`${ann.id_property}-${ann.number}`) ? "⏳" : "🤍"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => router.push('/login')}
+                            className="btn btn-secondary"
+                            style={{ padding: "4px 12px", fontSize: "0.875rem" }}
+                          >
+                            Login para match
+                          </button>
+                        )}
                         <Link
                           href={`/anuncio/${ann.id_property}/${ann.number}`}
                           className="btn btn-primary"

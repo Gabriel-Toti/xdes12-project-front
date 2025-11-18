@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { announcement, user } from "@/utils/api";
+import { announcement, user, match } from "@/utils/api";
 
 export default function VerAnuncio() {
   const router = useRouter();
@@ -51,6 +51,31 @@ export default function VerAnuncio() {
       setError(err?.response?.data?.error || err?.message || "Erro ao carregar dados");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const [isMatching, setIsMatching] = useState(false);
+  const [matchSuccess, setMatchSuccess] = useState(false);
+
+  const handleMatch = async () => {
+    if (!currentUser) {
+      router.push('/login');
+      return;
+    }
+
+    setIsMatching(true);
+    setError(null);
+    setMatchSuccess(false);
+
+    try {
+      await match.create({ id_property: propertyId, number_announcement: number });
+      setMatchSuccess(true);
+      await loadData();
+      setTimeout(() => setMatchSuccess(false), 3000);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erro ao registrar match');
+    } finally {
+      setIsMatching(false);
     }
   };
 
@@ -170,23 +195,63 @@ export default function VerAnuncio() {
             )}
           </div>
 
-          {announcementData.matches && announcementData.matches.length > 0 && (
-            <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
-              <h4 style={{ marginBottom: "1rem" }}>Candidatos ({announcementData.matches.length})</h4>
-              <ul>
-                {announcementData.matches.map((match: any, idx: number) => (
-                  <li key={idx} style={{ marginBottom: "0.5rem" }}>
-                    {match.users.name} ({match.users.email})
-                    {match.accepted && (
-                      <span style={{ color: "#059669", marginLeft: "0.5rem" }}>✓ Aceito</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+          {matchSuccess && (
+            <div className="success-message" style={{ marginBottom: "1rem", padding: "1rem", background: "#d1fae5", color: "#065f46", borderRadius: "8px" }}>
+              ✓ Match realizado com sucesso! Seu email foi registrado.
             </div>
           )}
 
-          <div className="form-actions">
+          <div className="form-actions" style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            {/* Botão de Match - aparece sempre que o usuário NÃO é admin do imóvel */}
+            {!isAdmin && (
+              <>
+                {currentUser ? (
+                  <button
+                    type="button"
+                    onClick={handleMatch}
+                    disabled={isMatching || announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id)}
+                    style={{
+                      fontSize: "2rem",
+                      background: "none",
+                      border: "none",
+                      cursor: announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) ? "default" : "pointer",
+                      color: announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) ? "#ef4444" : "#9ca3af",
+                      transition: "transform 0.2s",
+                      padding: "0.5rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) && !isMatching) {
+                        e.currentTarget.style.transform = "scale(1.2)";
+                        e.currentTarget.style.color = "#ef4444";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) && !isMatching) {
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.color = "#9ca3af";
+                      }
+                    }}
+                    title={announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) ? "Você já deu match neste anúncio" : "Dar match neste anúncio"}
+                  >
+                    {isMatching ? "⏳" : announcementData.matches?.some((m: any) => m.users?.id === currentUser?.id) ? "❤️" : "🤍"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => router.push('/login')}
+                    style={{ color: "white" }}
+                  >
+                    Faça login para dar match
+                  </button>
+                )}
+              </>
+            )}
+            
+            {/* Botão de Editar - aparece apenas para admins */}
             {isAdmin && (
               <Link
                 href={`/anuncio/${propertyId}/${number}/editar`}
@@ -196,6 +261,7 @@ export default function VerAnuncio() {
                 Editar Anúncio
               </Link>
             )}
+            
             <button
               type="button"
               className="btn btn-secondary"

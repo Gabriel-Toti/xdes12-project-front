@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { announcement, property, user } from "@/utils/api";
+import { announcement, property, user, match } from "@/utils/api";
 
 type Announcement = {
   id_property: string;
@@ -34,10 +34,24 @@ export default function Anuncios() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasProperties, setHasProperties] = useState<boolean | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [matchingIds, setMatchingIds] = useState<Set<string>>(new Set());
+  const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     checkUserProperties();
+    loadCurrentUser();
   }, []);
+
+  const loadCurrentUser = async () => {
+    try {
+      const userData = await user.me();
+      setCurrentUser(userData);
+    } catch (err) {
+      // Usuário não está autenticado, não faz nada
+      setCurrentUser(null);
+    }
+  };
 
   const checkUserProperties = async () => {
     try {
@@ -112,6 +126,41 @@ export default function Anuncios() {
   const formatDate = (date: string | null) => {
     if (!date) return "-";
     return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(date));
+  };
+
+  const handleMatch = async (propertyId: string, number: number) => {
+    if (!currentUser) {
+      router.push('/login');
+      return;
+    }
+
+    const matchKey = `${propertyId}-${number}`;
+    setMatchingIds(prev => new Set(prev).add(matchKey));
+    setError(null);
+    setMatchSuccess(null);
+
+    try {
+      await match.create({ id_property: propertyId, number_announcement: number });
+      setMatchSuccess(matchKey);
+      setTimeout(() => setMatchSuccess(null), 3000);
+      // Recarregar anúncios para atualizar a lista
+      await loadAnnouncements();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || 'Erro ao registrar match');
+    } finally {
+      setMatchingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(matchKey);
+        return newSet;
+      });
+    }
+  };
+
+  const hasMatch = (ann: Announcement) => {
+    // Verificar se o anúncio já tem match do usuário atual
+    // Isso seria melhor se o backend retornasse essa informação, mas por enquanto
+    // vamos assumir que se o usuário está logado, podemos tentar
+    return false; // Por enquanto sempre retorna false, mas pode ser melhorado
   };
 
   if (loading || hasProperties === null) {
@@ -241,14 +290,71 @@ export default function Anuncios() {
                       </p>
                     </div>
                   </div>
-                  <div style={{ marginLeft: "1rem" }}>
-                    <Link
-                      href={`/anuncio/${ann.id_property}/${ann.number}`}
-                      className="btn btn-primary"
-                      style={{ padding: "8px 16px", color: "white" }}
-                    >
-                      Ver Detalhes
-                    </Link>
+                  <div style={{ marginLeft: "1rem", display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "flex-end" }}>
+                    {matchSuccess === `${ann.id_property}-${ann.number}` && (
+                      <div style={{ 
+                        fontSize: "0.75rem", 
+                        color: "#059669", 
+                        fontWeight: "600",
+                        padding: "4px 8px",
+                        background: "#d1fae5",
+                        borderRadius: "4px"
+                      }}>
+                        ✓ Match realizado!
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      {currentUser ? (
+                        <button
+                          type="button"
+                          onClick={() => handleMatch(ann.id_property, ann.number)}
+                          disabled={matchingIds.has(`${ann.id_property}-${ann.number}`) || hasMatch(ann)}
+                          style={{
+                            fontSize: "1.5rem",
+                            background: "none",
+                            border: "none",
+                            cursor: matchingIds.has(`${ann.id_property}-${ann.number}`) || hasMatch(ann) ? "default" : "pointer",
+                            color: hasMatch(ann) ? "#ef4444" : "#9ca3af",
+                            transition: "transform 0.2s",
+                            padding: "0.5rem",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!matchingIds.has(`${ann.id_property}-${ann.number}`) && !hasMatch(ann)) {
+                              e.currentTarget.style.transform = "scale(1.2)";
+                              e.currentTarget.style.color = "#ef4444";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!matchingIds.has(`${ann.id_property}-${ann.number}`) && !hasMatch(ann)) {
+                              e.currentTarget.style.transform = "scale(1)";
+                              e.currentTarget.style.color = "#9ca3af";
+                            }
+                          }}
+                          title={hasMatch(ann) ? "Você já deu match neste anúncio" : "Dar match neste anúncio"}
+                        >
+                          {matchingIds.has(`${ann.id_property}-${ann.number}`) ? "⏳" : hasMatch(ann) ? "❤️" : "🤍"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => router.push('/login')}
+                          className="btn btn-secondary"
+                          style={{ padding: "4px 12px", fontSize: "0.875rem" }}
+                        >
+                          Login para match
+                        </button>
+                      )}
+                      <Link
+                        href={`/anuncio/${ann.id_property}/${ann.number}`}
+                        className="btn btn-primary"
+                        style={{ padding: "8px 16px", color: "white" }}
+                      >
+                        Ver Detalhes
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>

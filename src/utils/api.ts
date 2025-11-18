@@ -59,13 +59,9 @@ export const user = {
 
 export const preference = {
   create: async (data: {
-    preferences: Array<{ name: string; value: string; weight: number }>;
+    preferences: any[];
   }) => {
     const response = await api.post(`/preference`, data);
-    return response.data;
-  },
-  list: async () => {
-    const response = await api.get(`/preference`);
     return response.data;
   },
   getModel: async () => {
@@ -81,7 +77,80 @@ export const preference = {
     return response.data;
   },
   delete: async (name: string) => {
-    const response = await api.delete(`/preference/${encodeURIComponent(name)}`);
+    const response = await api.delete(`/preference/${name}`);
+    return response.data;
+  }
+}
+
+export const announcement = {
+  create: async (data: {
+    title: string;
+    description?: string;
+    average_cost: number;
+    boost?: boolean;
+    vacancies: number;
+    id_property: string;
+  }) => {
+    const response = await api.post(`/announcement`, data);
+    return response.data;
+  },
+  list: async (propertyId?: string) => {
+    const params = propertyId ? `?propertyId=${propertyId}` : '';
+    const response = await api.get(`/announcement${params}`);
+    return response.data;
+  },
+  listPublic: async () => {
+    const response = await api.get(`/announcement/public`);
+    return response.data;
+  },
+  get: async (propertyId: string, number: number) => {
+    const response = await api.get(`/announcement/${propertyId}/${number}`);
+    return response.data;
+  },
+  update: async (propertyId: string, number: number, data: {
+    title?: string;
+    description?: string;
+    average_cost?: number;
+    boost?: boolean;
+    vacancies?: number;
+  }) => {
+    const response = await api.put(`/announcement/${propertyId}/${number}`, data);
+    return response.data;
+  },
+  delete: async (propertyId: string, number: number) => {
+    const response = await api.delete(`/announcement/${propertyId}/${number}`);
+    return response.data;
+  }
+}
+
+export const match = {
+  create: async (data: {
+    id_property: string;
+    number_announcement: number;
+  }) => {
+    const response = await api.post(`/match`, data);
+    return response.data;
+  },
+  getAll: async (propertyId?: string, numberAnnouncement?: number) => {
+    const params = new URLSearchParams();
+    if (propertyId) params.append('propertyId', propertyId);
+    if (numberAnnouncement !== undefined) params.append('numberAnnouncement', numberAnnouncement.toString());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await api.get(`/match${query}`);
+    return response.data;
+  },
+  get: async (propertyId: string, numberAnnouncement: number) => {
+    const response = await api.get(`/match/${propertyId}/${numberAnnouncement}`);
+    return response.data;
+  },
+  update: async (propertyId: string, numberAnnouncement: number, data: {
+    accepted?: boolean;
+  }) => {
+    const response = await api.put(`/match/${propertyId}/${numberAnnouncement}`, data);
+    return response.data;
+  },
+  delete: async (propertyId: string, numberAnnouncement: number) => {
+    const response = await api.delete(`/match/${propertyId}/${numberAnnouncement}`);
     return response.data;
   }
 }
@@ -90,24 +159,24 @@ export const property = {
   create: async (data: {
     name: string;
     type: string;
-    costs: string;
     address: string;
     total_vacancies: number;
     total_dorms: number;
     total_bathrooms: number;
     garage: boolean;
     external_area: boolean;
+    costs: string;
     members: Array<{ id: string }>;
   }) => {
     const response = await api.post(`/property`, data);
     return response.data;
   },
-  list: async () => {
-    const response = await api.get(`/property`);
-    return response.data;
-  },
   get: async (id: string) => {
     const response = await api.get(`/property/${id}`);
+    return response.data;
+  },
+  list: async () => {
+    const response = await api.get(`/property`);
     return response.data;
   },
   update: async (id: string, data: {
@@ -130,7 +199,7 @@ export const rule = {
     const response = await api.post(`/rule/${propertyId}`, data);
     return response.data;
   },
-  list: async (propertyId: string) => {
+  get: async (propertyId: string) => {
     const response = await api.get(`/rule/${propertyId}`);
     return response.data;
   },
@@ -142,48 +211,6 @@ export const rule = {
   },
   delete: async (propertyId: string, name: string) => {
     const response = await api.delete(`/rule/${propertyId}/${encodeURIComponent(name)}`);
-    return response.data;
-  }
-}
-
-export const announcement = {
-  create: async (data: {
-    title: string;
-    description?: string;
-    average_cost: number;
-    boost?: boolean;
-    vacancies: number;
-    id_property: string;
-  }) => {
-    const response = await api.post(`/announcement`, data);
-    return response.data;
-  },
-  list: async (propertyId?: string) => {
-    const params = propertyId ? `?propertyId=${propertyId}` : '';
-    const response = await api.get(`/announcement${params}`);
-    return response.data;
-  },
-  listPublic: async (propertyId?: string) => {
-    const params = propertyId ? `?propertyId=${propertyId}` : '';
-    const response = await api.get(`/announcement/public${params}`);
-    return response.data;
-  },
-  get: async (propertyId: string, number: number) => {
-    const response = await api.get(`/announcement/${propertyId}/${number}`);
-    return response.data;
-  },
-  update: async (propertyId: string, number: number, data: {
-    title?: string;
-    description?: string;
-    average_cost?: number;
-    boost?: boolean;
-    vacancies?: number;
-  }) => {
-    const response = await api.put(`/announcement/${propertyId}/${number}`, data);
-    return response.data;
-  },
-  delete: async (propertyId: string, number: number) => {
-    const response = await api.delete(`/announcement/${propertyId}/${number}`);
     return response.data;
   }
 }
