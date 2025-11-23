@@ -15,6 +15,7 @@ type Announcement = {
   boost: boolean | null;
   vacancies: number;
   created_at: string | null;
+  compatibility?: number;
   image_url?: string | null;
   images?: Array<{
     image_url: string;
@@ -53,7 +54,9 @@ export default function Home() {
   const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    // Carregar anúncios primeiro (sem compatibilidade)
     loadAnnouncements();
+    // Depois tentar carregar usuário (que pode recarregar anúncios com compatibilidade)
     loadCurrentUser();
   }, []);
 
@@ -66,11 +69,15 @@ export default function Home() {
         loadUserMatches(),
         loadUserProperties()
       ]);
+      // Recarregar anúncios para obter compatibilidade (passa o usuário como parâmetro)
+      await loadAnnouncements(userData);
     } catch (err) {
       // Usuário não está autenticado, não faz nada
       setCurrentUser(null);
       setUserMatches([]);
       setUserProperties([]);
+      // Carregar anúncios sem compatibilidade
+      await loadAnnouncements();
     }
   };
 
@@ -94,18 +101,41 @@ export default function Home() {
     }
   };
 
-  const loadAnnouncements = async () => {
+  const loadAnnouncements = async (user?: any) => {
     setLoading(true);
     setError(null);
     try {
-      // Usa a rota pública que não requer autenticação
-      const data = await announcement.listPublic();
+      // Se o usuário está logado, usa a rota autenticada para obter compatibilidade
+      // Caso contrário, usa a rota pública
+      const userToCheck = user !== undefined ? user : currentUser;
+      let data;
+      if (userToCheck) {
+        try {
+          data = await announcement.list();
+        } catch (err) {
+          // Se falhar a rota autenticada, tenta a pública
+          data = await announcement.listPublic();
+        }
+      } else {
+        data = await announcement.listPublic();
+      }
       
       // Garantir que data é um array
       const announcementsArray = Array.isArray(data) ? data : [];
       
-      // Backend já ordena por boost e data, mas garantimos aqui também
+      // Se o usuário está logado, o backend já ordena por compatibilidade, boost e data
+      // Se não está logado, ordena por boost e data
       const sorted = [...announcementsArray].sort((a, b) => {
+        // Se há compatibilidade, ordenar por ela primeiro
+        if (userToCheck && a.compatibility !== undefined && b.compatibility !== undefined) {
+          const aCompat = a.compatibility ?? 0;
+          const bCompat = b.compatibility ?? 0;
+          if (Math.abs(aCompat - bCompat) > 0.001) {
+            return bCompat - aCompat; // Maior compatibilidade primeiro
+          }
+        }
+        
+        // Depois por boost
         const aBoost = a.boost === true ? 1 : 0;
         const bBoost = b.boost === true ? 1 : 0;
         if (aBoost !== bBoost) {
@@ -256,7 +286,7 @@ export default function Home() {
                     })()}
 
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
                         <div className="card-title">{ann.title}</div>
                         {ann.boost && (
                           <span
@@ -271,6 +301,27 @@ export default function Home() {
                           >
                             BOOST
                           </span>
+                        )}
+                        {ann.compatibility !== undefined && ann.compatibility !== null && currentUser && !userProperties.some(p => p.id === ann.id_property) && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <span
+                              style={{
+                                background: ann.compatibility >= 0.7 ? "#10b981" : ann.compatibility >= 0.4 ? "#f59e0b" : "#ef4444",
+                                color: "white",
+                                padding: "4px 12px",
+                                borderRadius: "20px",
+                                fontSize: "0.75rem",
+                                fontWeight: "bold",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.25rem"
+                              }}
+                              title={`Compatibilidade: ${ann.compatibility}%`}
+                            >
+                              <span>🎯</span>
+                              <span>{ann.compatibility}%</span>
+                            </span>
+                          </div>
                         )}
                       </div>
                       <div className="card-subtitle" style={{ marginBottom: 8 }}>

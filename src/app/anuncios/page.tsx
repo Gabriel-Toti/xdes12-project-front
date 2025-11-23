@@ -14,6 +14,7 @@ type Announcement = {
   boost: boolean | null;
   vacancies: number;
   created_at: string | null;
+  compatibility?: number;
   property: {
     id: string;
     name: string;
@@ -35,6 +36,7 @@ export default function Anuncios() {
   const [error, setError] = useState<string | null>(null);
   const [hasProperties, setHasProperties] = useState<boolean | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userProperties, setUserProperties] = useState<Array<{ id: string }>>([]);
   const [matchingIds, setMatchingIds] = useState<Set<string>>(new Set());
   const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
 
@@ -57,6 +59,7 @@ export default function Anuncios() {
     try {
       const properties = await property.list();
       setHasProperties(properties.length > 0);
+      setUserProperties(properties || []);
       
       if (properties.length === 0) {
         setError("Você precisa ter pelo menos um imóvel cadastrado para acessar esta página.");
@@ -78,28 +81,21 @@ export default function Anuncios() {
     }
   };
 
+  const isPropertyOwner = (propertyId: string): boolean => {
+    if (!currentUser || !userProperties.length) return false;
+    return userProperties.some(p => p.id === propertyId);
+  };
+
   const loadAnnouncements = async () => {
     setLoading(true);
     setError(null);
     try {
       // Usa a rota autenticada que retorna todos os anúncios públicos
-      // (a lógica foi ajustada para retornar todos quando não há filtro de propriedade)
+      // O backend já ordena por compatibilidade (quando há userId), boost e data
       const data = await announcement.list();
       
-      // Backend já ordena por boost e data, mas garantimos aqui também
-      const sorted = [...data].sort((a, b) => {
-        const aBoost = a.boost === true ? 1 : 0;
-        const bBoost = b.boost === true ? 1 : 0;
-        if (aBoost !== bBoost) {
-          return bBoost - aBoost; // Boost primeiro
-        }
-        // Se ambos têm ou não têm boost, ordenar por data
-        const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bDate - aDate; // Mais recentes primeiro
-      });
-      
-      setAnnouncements(sorted);
+      // Backend já ordena corretamente, então apenas usa os dados retornados
+      setAnnouncements(data);
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
@@ -240,7 +236,7 @@ export default function Anuncios() {
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
                       <h4 style={{ margin: 0 }}>{ann.title}</h4>
                       {ann.boost && (
                         <span
@@ -255,6 +251,27 @@ export default function Anuncios() {
                         >
                           BOOST
                         </span>
+                      )}
+                      {ann.compatibility !== undefined && ann.compatibility !== null && currentUser && !isPropertyOwner(ann.id_property) && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <span
+                            style={{
+                              background: ann.compatibility >= 0.7 ? "#10b981" : ann.compatibility >= 0.4 ? "#f59e0b" : "#ef4444",
+                              color: "white",
+                              padding: "4px 12px",
+                              borderRadius: "20px",
+                              fontSize: "0.75rem",
+                              fontWeight: "bold",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.25rem"
+                            }}
+                            title={`Compatibilidade: ${ann.compatibility}%`}
+                          >
+                            <span>🎯</span>
+                            <span>{ann.compatibility}%</span>
+                          </span>
+                        </div>
                       )}
                     </div>
                     {ann.description && (
