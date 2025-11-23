@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LoginDto } from "../../types/index";
-import { user } from "../../utils/api";
+import { user, preference } from "../../utils/api";
 
 export default function Login() {
   const router = useRouter();
@@ -32,7 +32,41 @@ export default function Login() {
         password: loginData.senha,
       });
 
-      router.push("/conta");
+      // Verificar se há preferências temporárias no localStorage e sincronizar
+      try {
+        const tempPrefs = localStorage.getItem('casar_temp_preferences');
+        if (tempPrefs) {
+          const parsed = JSON.parse(tempPrefs);
+          const newPreferences: Array<{ name: string; value: string; weight: number }> = [];
+          
+          for (const [name, value] of Object.entries(parsed)) {
+            if (value) {
+              newPreferences.push({ 
+                name, 
+                value: typeof value === 'string' ? value : Array.isArray(value) ? value.join(", ") : String(value), 
+                weight: 1 
+              });
+            }
+          }
+          
+          if (newPreferences.length > 0) {
+            try {
+              await preference.create({ preferences: newPreferences });
+            } catch (err) {
+              // Ignorar erros ao sincronizar preferências
+              console.error("Erro ao sincronizar preferências:", err);
+            }
+          }
+          
+          localStorage.removeItem('casar_temp_preferences');
+        }
+      } catch (err) {
+        // Ignorar erros do localStorage
+      }
+
+      // Redirecionar para a URL especificada ou para /conta
+      const redirect = searchParams.get("redirect");
+      router.push(redirect || "/conta");
     } catch (err: any) {
       setError(
         err.response?.data?.error || err.message || "Erro ao fazer login"

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, user } from "@/utils/api";
+import { api, user, preference } from "@/utils/api";
 
 export default function Cadastro() {
   const router = useRouter();
@@ -80,16 +80,66 @@ export default function Cadastro() {
         birthdate: dataNascimento,
       });
 
-      setSuccess(
-        "Cadastro realizado com sucesso! Redirecionando para login..."
-      );
+      // Após cadastro bem-sucedido, fazer login automático e transferir preferências
+      try {
+        // Fazer login automático
+        await user.login({
+          email: email,
+          password: senha,
+        });
 
-      // redireciona para a tela de login e preenche o email
-      setTimeout(() => {
-        router.push(`/login?email=${encodeURIComponent(email)}`);
-      }, 900);
+        // Verificar se há preferências temporárias no localStorage e transferir
+        try {
+          const tempPrefs = localStorage.getItem('casar_temp_preferences');
+          if (tempPrefs) {
+            const parsed = JSON.parse(tempPrefs);
+            const newPreferences: Array<{ name: string; value: string; weight: number }> = [];
+            
+            for (const [name, value] of Object.entries(parsed)) {
+              if (value) {
+                newPreferences.push({ 
+                  name,
+                  value: typeof value === 'string' ? value : Array.isArray(value) ? value.join(", ") : String(value), 
+                  weight: 1 
+                });
+              }
+            }
+            
+            if (newPreferences.length > 0) {
+              try {
+                await preference.create({ preferences: newPreferences });
+                // Limpar localStorage após transferência bem-sucedida
+                localStorage.removeItem('casar_temp_preferences');
+              } catch (prefErr) {
+                // Se der erro ao criar preferências, manter no localStorage para tentar depois
+                console.error("Erro ao transferir preferências:", prefErr);
+              }
+            }
+          }
+        } catch (err) {
+          // Ignorar erros do localStorage
+          console.error("Erro ao processar preferências:", err);
+        }
+
+        setSuccess(
+          "Cadastro realizado com sucesso! Redirecionando..."
+        );
+
+        // Redirecionar para a conta ou página inicial
+        setTimeout(() => {
+          router.push('/conta');
+        }, 900);
+      } catch (loginErr: any) {
+        // Se o login automático falhar, redirecionar para login manual
+        setSuccess(
+          "Cadastro realizado com sucesso! Redirecionando para login..."
+        );
+        setTimeout(() => {
+          router.push(`/login?email=${encodeURIComponent(email)}`);
+        }, 900);
+      }
     } catch (err: any) {
-      setError(err?.message || "Erro ao cadastrar usuário");
+      setError(err?.response?.data?.error || err?.message || "Erro ao cadastrar usuário");
     } finally {
       setLoading(false);
     }

@@ -48,6 +48,9 @@ export default function Navbar() {
           <Link className={`nav-link ${pathname === "/" ? "active" : ""}`} href="/">
             Home
           </Link>
+          <Link className={`nav-link ${pathname === "/anuncios" ? "active" : ""}`} href="/anuncios">
+            Anúncios
+          </Link>
           {currentUser ? (
             <>
               <Link className={`nav-link ${pathname === "/imoveis" ? "active" : ""}`} href="/imoveis">

@@ -1,386 +1,479 @@
 "use client";
-
-import { useState, useEffect } from "react";
-import Link from "next/link";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { announcement, user, match, property } from "../utils/api";
+import { preference, user } from "../utils/api";
 import Navbar from "../components/Navbar";
 
-type Announcement = {
-  id_property: string;
-  number: number;
-  title: string;
-  description: string | null;
-  average_cost: number;
-  boost: boolean | null;
-  vacancies: number;
-  created_at: string | null;
-  image_url?: string | null;
-  images?: Array<{
-    image_url: string;
-  }>;
-  property: {
-    id: string;
-    name: string;
-    type: string;
-    address: string;
-    image_url?: string | null;
-    images?: Array<{
-      image_url: string;
-    }>;
-    participation?: Array<{
-      id_user: string;
-      admin: boolean;
-    }>;
-    rule: Array<{
-      attribute: {
-        name: string;
-        value: string;
-      };
-    }>;
-  };
+type ModelField = {
+  type: "closed" | "location" | "schedule" | string;
+  expected: string[];
+};
+
+type PreferenceEntry = {
+  name: string;
+  value: string;
+  weight: number;
 };
 
 export default function Home() {
   const router = useRouter();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [model, setModel] = useState<Record<string, ModelField> | null>(null);
+  const [loadingModel, setLoadingModel] = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [userMatches, setUserMatches] = useState<Array<{ id_user: string; id_property: string; number_announcement: number; [key: string]: any }>>([]);
-  const [userProperties, setUserProperties] = useState<Array<{ id: string }>>([]);
-  const [matchingIds, setMatchingIds] = useState<Set<string>>(new Set());
-  const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
+  const [loadingPreferences, setLoadingPreferences] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const multiSelectFields = new Set(["Estilo de Convivência", "Hobbies"]);
+
+  // Parse schedule value from backend format "HHh-HHh; HHh-HHh" to entries array
+  const parseScheduleValue = (value: string): Array<{ start: string; end: string }> => {
+    if (!value) return [];
+    const intervals = value.split(";").map(s => s.trim());
+    return intervals.map(interval => {
+      const [start, end] = interval.split("-").map(s => s.trim());
+      // Convert "22h" or "22h30" to "22:00" or "22:30"
+      const parseTime = (timeStr: string): string => {
+        const match = timeStr.match(/(\d{1,2})h(\d{2})?/);
+        if (!match) return "";
+        const hour = match[1].padStart(2, "0");
+        const minute = match[2] || "00";
+        return `${hour}:${minute}`;
+      };
+      return { start: parseTime(start), end: parseTime(end) };
+    }).filter(e => e.start && e.end);
+  };
+
+  // Format schedule entries to backend format
+  const formatScheduleTime = (time: string): string => {
+    if (!time) return "";
+    const [hh = "00", mm = "00"] = time.split(":");
+    const normalizedHour = hh.padStart(2, "0");
+    return !mm || mm === "00" ? `${normalizedHour}h` : `${normalizedHour}h${mm}`;
+  };
 
   useEffect(() => {
-    loadAnnouncements();
-    loadCurrentUser();
+    const loadData = async () => {
+      setLoadingModel(true);
+      setLoadingPreferences(true);
+      try {
+        // Verificar se o usuário está logado
+        let userData = null;
+        try {
+          userData = await user.me();
+          setCurrentUser(userData);
+          // Se o usuário estiver logado, redirecionar para /anuncios
+          router.push('/anuncios');
+          return;
+        } catch (err) {
+          setCurrentUser(null);
+        }
+
+        const [modelRes] = await Promise.allSettled([
+          fetch(`${process.env.NEXT_PUBLIC_API_URL}/preference/model`)
+        ]);
+
+        if (modelRes.status === 'fulfilled') {
+          const res = modelRes.value;
+          if (!res.ok) throw new Error("Falha ao carregar modelo de preferências");
+          const json = await res.json();
+          setModel(json);
+
+          // Initialize defaults
+          const defaults: Record<string, any> = {};
+          Object.entries(json).forEach(([k, v]: [any, any]) => {
+            if (v.type === "closed") {
+              if (multiSelectFields.has(k)) defaults[k] = [];
+              else defaults[k] = "";
+            } else if (v.type === "location") {
+              defaults[k] = "";
+            } else if (v.type === "schedule") {
+              defaults[k] = { entries: [] };
+            } else {
+              defaults[k] = "";
+            }
+          });
+
+          // Se não está logado, tentar carregar do localStorage
+          try {
+            const savedPrefs = localStorage.getItem('casar_temp_preferences');
+            if (savedPrefs) {
+              const parsed = JSON.parse(savedPrefs);
+              Object.entries(parsed).forEach(([name, value]: [string, any]) => {
+                const def = json[name];
+                if (!def) return;
+                
+                if (def.type === "closed") {
+                  if (multiSelectFields.has(name)) {
+                    defaults[name] = Array.isArray(value) ? value : [];
+                  } else {
+                    defaults[name] = value || "";
+                  }
+                } else if (def.type === "location") {
+                  defaults[name] = value || "";
+                } else if (def.type === "schedule") {
+                  defaults[name] = { entries: parseScheduleValue(value || "") };
+                } else {
+                  defaults[name] = value || "";
+                }
+              });
+            }
+          } catch (err) {
+            // Ignorar erros do localStorage
+          }
+
+          setFormValues(defaults);
+        }
+      } catch (err: any) {
+        setError(err?.message || "Erro ao carregar dados");
+      } finally {
+        setLoadingModel(false);
+        setLoadingPreferences(false);
+      }
+    };
+    loadData();
   }, []);
 
-  const loadCurrentUser = async () => {
-    try {
-      const userData = await user.me();
-      setCurrentUser(userData);
-      // Carregar matches e propriedades do usuário
-      await Promise.all([
-        loadUserMatches(),
-        loadUserProperties()
-      ]);
-    } catch (err) {
-      // Usuário não está autenticado, não faz nada
-      setCurrentUser(null);
-      setUserMatches([]);
-      setUserProperties([]);
-    }
+  const toggleMulti = (field: string, value: string) => {
+    setFormValues((prev) => {
+      const arr = Array.isArray(prev[field]) ? [...prev[field]] : [];
+      const idx = arr.indexOf(value);
+      if (idx >= 0) arr.splice(idx, 1);
+      else arr.push(value);
+      return { ...prev, [field]: arr };
+    });
   };
 
-  const loadUserProperties = async () => {
-    try {
-      const properties = await property.list();
-      setUserProperties(properties || []);
-    } catch (err) {
-      console.error("Erro ao carregar propriedades:", err);
-      setUserProperties([]);
-    }
+  const addScheduleEntry = (field: string, start: string, end: string) => {
+    setFormValues((prev) => {
+      const schedule = prev[field] || { entries: [] };
+      const entries = Array.isArray(schedule.entries) ? schedule.entries : [];
+      const newEntries = [...entries, { start, end }];
+      return { ...prev, [field]: { ...schedule, entries: newEntries } };
+    });
   };
 
-  const loadUserMatches = async () => {
-    try {
-      const matches = await match.getAll();
-      setUserMatches(matches || []);
-    } catch (err) {
-      console.error("Erro ao carregar matches:", err);
-      setUserMatches([]);
-    }
+  const removeScheduleEntry = (field: string, index: number) => {
+    setFormValues((prev) => {
+      const schedule = prev[field] || { entries: [] };
+      const entries = Array.isArray(schedule.entries) ? [...schedule.entries] : [];
+      entries.splice(index, 1);
+      return { ...prev, [field]: { ...schedule, entries } };
+    });
   };
 
-  const loadAnnouncements = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Usa a rota pública que não requer autenticação
-      const data = await announcement.listPublic();
+  const validate = (): boolean => {
+    if (!model) return false;
+
+    const newPreferences = Object.entries(formValues).filter(([name, value]) => {
+      const def = model[name];
+      if (!def) return false;
       
-      // Garantir que data é um array
-      const announcementsArray = Array.isArray(data) ? data : [];
-      
-      // Backend já ordena por boost e data, mas garantimos aqui também
-      const sorted = [...announcementsArray].sort((a, b) => {
-        const aBoost = a.boost === true ? 1 : 0;
-        const bBoost = b.boost === true ? 1 : 0;
-        if (aBoost !== bBoost) {
-          return bBoost - aBoost; // Boost primeiro
+      if (def.type === "closed") {
+        if (multiSelectFields.has(name)) {
+          return Array.isArray(value) && value.length > 0;
         }
-        // Se ambos têm ou não têm boost, ordenar por data
-        const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bDate - aDate; // Mais recentes primeiro
-      });
-      
-      setAnnouncements(sorted);
-    } catch (err: any) {
-      // Não redireciona para login na home, apenas mostra erro silencioso
-      console.error("Erro ao carregar anúncios:", err);
-      setError("Não foi possível carregar os anúncios.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatType = (type: string) => {
-    const map: Record<string, string> = {
-      CASA: "Casa",
-      APARTAMENTO: "Apartamento",
-      REPUBLICA: "República",
-      PENSAO: "Pensão"
-    };
-    return map[type] || type;
-  };
-
-  const hasMatch = (propertyId: string, number: number): boolean => {
-    return userMatches.some(
-      m => m.id_property === propertyId && m.number_announcement === number
-    );
-  };
-
-  const getMatchUserId = (propertyId: string, number: number): string | null => {
-    const match = userMatches.find(
-      m => m.id_property === propertyId && m.number_announcement === number
-    );
-    return match ? match.id_user : null;
-  };
-
-  const handleMatch = async (propertyId: string, number: number) => {
-    if (!currentUser) {
-      router.push('/login');
-      return;
-    }
-
-    const matchKey = `${propertyId}-${number}`;
-    const isMatched = hasMatch(propertyId, number);
-    
-    setMatchingIds(prev => new Set(prev).add(matchKey));
-    setError(null);
-    setMatchSuccess(null);
-
-    try {
-      if (isMatched) {
-        // Deletar match existente
-        const matchUserId = getMatchUserId(propertyId, number);
-        if (matchUserId) {
-          await match.delete(propertyId, number, matchUserId);
-          setMatchSuccess(null);
-          // Recarregar matches
-          await loadUserMatches();
-        }
-      } else {
-        // Criar novo match
-        await match.create({ id_property: propertyId, number_announcement: number });
-        setMatchSuccess(matchKey);
-        setTimeout(() => setMatchSuccess(null), 3000);
-        // Recarregar matches
-        await loadUserMatches();
+        return value !== "" && value !== null && value !== undefined;
       }
+      
+      if (def.type === "location") {
+        return value !== "" && value !== null && value !== undefined && !isNaN(Number(value));
+      }
+      
+      if (def.type === "schedule") {
+        return Array.isArray(value?.entries) && value.entries.length > 0;
+      }
+      
+      return value !== "" && value !== null && value !== undefined;
+    });
+
+    if (newPreferences.length < 3) {
+      setError(`Você deve preencher ao menos 3 preferências. Atualmente você preencheu ${newPreferences.length} preferência(s).`);
+      return false;
+    }
+
+    setError(null);
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    if (!model) return;
+    
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      // Se não está logado, salvar em localStorage
+      const tempPrefs: Record<string, any> = {};
+      for (const [name, val] of Object.entries(formValues)) {
+        const def = model[name];
+        if (!def) continue;
+        
+        if (def.type === "closed") {
+          if (multiSelectFields.has(name)) {
+            if (Array.isArray(val) && val.length > 0) {
+              tempPrefs[name] = val;
+            }
+          } else {
+            if (val !== "" && val !== null && val !== undefined) {
+              tempPrefs[name] = val;
+            }
+          }
+        } else if (def.type === "location") {
+          if (val !== "" && val !== null && val !== undefined && !isNaN(Number(val))) {
+            tempPrefs[name] = val;
+          }
+        } else if (def.type === "schedule") {
+          if (Array.isArray(val?.entries) && val.entries.length > 0) {
+            tempPrefs[name] = val.entries
+              .map((entry: { start: string; end: string }) => 
+                `${formatScheduleTime(entry.start)}-${formatScheduleTime(entry.end)}`
+              )
+              .join("; ");
+          }
+        } else {
+          if (val !== "" && val !== null && val !== undefined) {
+            tempPrefs[name] = val;
+          }
+        }
+      }
+      localStorage.setItem('casar_temp_preferences', JSON.stringify(tempPrefs));
+
+      // Redirecionar para /anuncios após salvar
+      router.push('/anuncios');
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || (isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
+      setError(err?.response?.data?.error || err?.message || "Erro ao salvar preferências");
     } finally {
-      setMatchingIds(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(matchKey);
-        return newSet;
-      });
+      setSubmitting(false);
     }
   };
+
+  if (loadingModel || loadingPreferences) {
+    return (
+      <div className="app">
+        <Navbar />
+        <main className="app-main">
+          <div className="cadastro-page">
+            <div className="cadastro-container">
+              <div>Carregando modelo de preferências...</div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (!model) {
+    return (
+      <div className="app">
+        <Navbar />
+        <main className="app-main">
+          <div className="cadastro-page">
+            <div className="cadastro-container">
+              <div>Modelo de preferências não encontrado.</div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
       <Navbar />
-
       <main className="app-main">
-        <section style={{ maxWidth: 1200, margin: "1.5rem auto", padding: "0 1rem" }}>
-          <h2 className="page-title">Anúncios Disponíveis</h2>
-
-          {error && (
-            <div style={{ padding: "1rem", background: "#fee2e2", color: "#991b1b", borderRadius: "8px", marginBottom: "1rem" }}>
-              {error}
+        <div className="cadastro-page">
+          <div className="cadastro-container">
+            <div className="cadastro-header">
+              <h2>CASAR</h2>
+              <h3>Bem-vindo! Configure suas preferências</h3>
+              <p style={{ color: "#666", marginTop: "0.5rem" }}>
+                Preencha pelo menos 3 preferências para começar a buscar imóveis
+              </p>
             </div>
-          )}
 
-          {loading ? (
-            <div style={{ textAlign: "center", padding: "2rem" }}>Carregando anúncios...</div>
-          ) : announcements.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "2rem" }}>
-              <p>Nenhum anúncio disponível no momento.</p>
-              {!currentUser && (
-                <Link href="/login" className="btn btn-primary" style={{ marginTop: "1rem", color: "white" }}>
-                  Faça login para criar anúncios
-                </Link>
-              )}
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {announcements.map((ann) => (
-                <div
-                  key={`${ann.id_property}-${ann.number}`}
-                  className="card"
-                  style={{
-                    border: ann.boost ? "2px solid #f59e0b" : "1px solid #e5e7eb",
-                    background: ann.boost ? "#fffbeb" : "white"
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                    {(() => {
-                      // Prioridade: imagens do anúncio > primeira imagem do anúncio > imagens da propriedade > primeira imagem da propriedade
-                      const announcementImages = ann.images?.map((img: any) => img.image_url) || [];
-                      const propertyImages = ann.property?.images?.map((img: any) => img.image_url) || [];
-                      const firstImage = announcementImages[0] || ann.image_url || propertyImages[0] || ann.property?.image_url;
-                      
-                      if (firstImage) {
-                        return (
-                          <img
-                            src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}${firstImage}`}
-                            alt={ann.title}
-                            style={{
-                              width: 220,
-                              height: 140,
-                              objectFit: "cover",
-                              borderRadius: 8,
-                              flexShrink: 0
-                            }}
-                          />
-                        );
-                      }
-                      return (
-                        <div style={{ width: 220, height: 140, background: "#f0f0f0", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#999", flexShrink: 0 }}>
-                          Sem foto
-                        </div>
-                      );
-                    })()}
+            <form onSubmit={handleSubmit} className="cadastro-form">
+              {Object.entries(model).map(([name, def]) => {
+                return (
+                  <div
+                    key={name}
+                    className="form-group"
+                    style={{
+                      marginBottom: 16,
+                      position: "relative"
+                    }}
+                  >
+                    <label className="form-label">{name}</label>
 
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
-                        <div className="card-title">{ann.title}</div>
-                        {ann.boost && (
-                          <span
-                            style={{
-                              background: "#f59e0b",
-                              color: "white",
-                              padding: "2px 8px",
-                              borderRadius: "4px",
-                              fontSize: "0.75rem",
-                              fontWeight: "bold"
-                            }}
-                          >
-                            BOOST
-                          </span>
-                        )}
-                      </div>
-                      <div className="card-subtitle" style={{ marginBottom: 8 }}>
-                        {ann.property.name} • {formatType(ann.property.type)}
-                      </div>
-                      {ann.description && (
-                        <p style={{ color: "#555", marginBottom: 8 }}>{ann.description}</p>
-                      )}
-
-                      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8 }}>
-                        <div style={{ fontWeight: 700, color: "#333" }}>
-                          R$ {ann.average_cost.toLocaleString("pt-BR")} / mês
-                        </div>
-                        <div style={{ color: "#666" }}>Vagas: {ann.vacancies}</div>
-                        <div style={{ color: "#666", fontSize: "0.875rem" }}>
-                          {ann.property.address}
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 12, display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                        {matchSuccess === `${ann.id_property}-${ann.number}` && (
-                          <span style={{ 
-                            fontSize: "0.75rem", 
-                            color: "#059669", 
-                            fontWeight: "600",
-                            padding: "4px 8px",
-                            background: "#d1fae5",
-                            borderRadius: "4px"
-                          }}>
-                            ✓ Match realizado!
-                          </span>
-                        )}
-                        {currentUser ? (
-                          (() => {
-                            // Verificar se o usuário é admin do imóvel
-                            // Primeiro tenta pela participation (se disponível), senão verifica pelas propriedades do usuário
-                            const isAdmin = ann.property?.participation?.some(
-                              (p: any) => p.id_user === currentUser.id && p.admin === true
-                            ) || userProperties.some(p => p.id === ann.id_property);
-                            
-                            // Se for admin, não mostrar o botão de match
-                            if (isAdmin) {
-                              return null;
-                            }
-
-                            const isMatched = hasMatch(ann.id_property, ann.number);
-                            const isProcessing = matchingIds.has(`${ann.id_property}-${ann.number}`);
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => handleMatch(ann.id_property, ann.number)}
-                                disabled={isProcessing}
+                    {def.type === "closed" && (
+                      <>
+                        {multiSelectFields.has(name) ? (
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px,1fr))", gap: 8 }}>
+                            {def.expected.map((opt) => (
+                              <label
+                                key={opt}
                                 style={{
-                                  fontSize: "1.5rem",
-                                  background: "none",
-                                  border: "none",
-                                  cursor: isProcessing ? "default" : "pointer",
-                                  color: isMatched ? "#ef4444" : "#9ca3af",
-                                  transition: "transform 0.2s",
-                                  padding: "0.5rem",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center"
+                                  fontWeight: 500,
+                                  cursor: "pointer"
                                 }}
-                                onMouseEnter={(e) => {
-                                  if (!isProcessing) {
-                                    e.currentTarget.style.transform = "scale(1.2)";
-                                    e.currentTarget.style.color = isMatched ? "#dc2626" : "#ef4444";
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  if (!isProcessing) {
-                                    e.currentTarget.style.transform = "scale(1)";
-                                    e.currentTarget.style.color = isMatched ? "#ef4444" : "#9ca3af";
-                                  }
-                                }}
-                                title={isMatched ? "Remover match deste anúncio" : "Dar match neste anúncio"}
                               >
-                                {isProcessing ? "⏳" : isMatched ? "❤️" : "🤍"}
-                              </button>
-                            );
-                          })()
+                                <input
+                                  type="checkbox"
+                                  value={opt}
+                                  checked={Array.isArray(formValues[name]) && formValues[name].includes(opt)}
+                                  onChange={() => toggleMulti(name, opt)}
+                                  style={{ marginRight: 8 }}
+                                />
+                                {opt}
+                              </label>
+                            ))}
+                          </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => router.push('/login')}
-                            className="btn btn-secondary"
-                            style={{ padding: "4px 12px", fontSize: "0.875rem" }}
+                          <select
+                            className="form-select"
+                            value={formValues[name] ?? ""}
+                            onChange={(e) => {
+                              setFormValues((p) => ({ ...p, [name]: e.target.value }));
+                            }}
                           >
-                            Login para match
-                          </button>
+                            <option value="" disabled>
+                              Selecionar opção
+                            </option>
+                            {def.expected.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
                         )}
-                        <Link
-                          href={`/anuncio/${ann.id_property}/${ann.number}`}
-                          className="btn btn-primary"
-                          style={{ color: "white" }}
-                        >
-                          Ver anúncio
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                      </>
+                    )}
 
-        </section>
+                    {def.type === "location" && (
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.1}
+                        className="form-input"
+                        value={formValues[name]}
+                        onChange={(e) => {
+                          setFormValues((p) => ({ ...p, [name]: e.target.value === "" ? "" : Number(e.target.value) }));
+                        }}
+                        placeholder="Raio máximo em km (ex: 5)"
+                      />
+                    )}
+
+                    {def.type === "schedule" && (
+                      <div>
+                        {Array.isArray(formValues[name]?.entries) && formValues[name].entries.length > 0 && (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                            {formValues[name].entries.map((entry: { start: string; end: string }, idx: number) => (
+                              <div
+                                key={idx}
+                                style={{
+                                  display: "flex",
+                                  gap: 8,
+                                  alignItems: "center",
+                                  padding: "8px",
+                                  background: "#f9fafb",
+                                  borderRadius: "4px"
+                                }}
+                              >
+                                <span style={{ flex: 1 }}>
+                                  {formatScheduleTime(entry.start)} - {formatScheduleTime(entry.end)}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeScheduleEntry(name, idx)}
+                                  style={{
+                                    padding: "4px 8px",
+                                    background: "#ef4444",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "4px",
+                                    cursor: "pointer"
+                                  }}
+                                >
+                                  Remover
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <div style={{ flex: 1 }}>
+                            <label className="form-label">Horário de Início</label>
+                            <input
+                              type="time"
+                              className="form-input"
+                              id={`${name}-start`}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <label className="form-label">Horário de Fim</label>
+                            <input
+                              type="time"
+                              className="form-input"
+                              id={`${name}-end`}
+                            />
+                          </div>
+                          <div style={{ display: "flex", alignItems: "flex-end" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const startInput = document.getElementById(`${name}-start`) as HTMLInputElement;
+                                const endInput = document.getElementById(`${name}-end`) as HTMLInputElement;
+                                if (startInput?.value && endInput?.value) {
+                                  addScheduleEntry(name, startInput.value, endInput.value);
+                                  startInput.value = "";
+                                  endInput.value = "";
+                                }
+                              }}
+                              style={{
+                                padding: "8px 16px",
+                                background: "#059669",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "4px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              Adicionar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {def.type !== "closed" && def.type !== "location" && def.type !== "schedule" && (
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={formValues[name] ?? ""}
+                        onChange={(e) => {
+                          setFormValues((p) => ({ ...p, [name]: e.target.value }));
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+
+              {error && <div className="error-message">{error}</div>}
+              {success && <div className="success-message">{success}</div>}
+
+              <div className="form-actions" style={{ display: "flex", gap: 8 }}>
+                <button type="submit" className="btn btn-primary" disabled={submitting} style={{ color: "white" }}>
+                  {submitting ? "Salvando..." : "Continuar para Anúncios"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       </main>
     </div>
   );

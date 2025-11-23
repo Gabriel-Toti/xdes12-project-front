@@ -228,7 +228,7 @@ export default function VerAnuncio() {
 
   const handleMatch = async () => {
     if (!currentUser) {
-      router.push('/login');
+      router.push(`/login?redirect=/anuncio/${propertyId}/${number}`);
       return;
     }
 
