@@ -250,9 +250,6 @@ export default function EditarImovel() {
     }
   };
 
-  const [showAddRuleModal, setShowAddRuleModal] = useState(false);
-  const [selectedAttributeToAdd, setSelectedAttributeToAdd] = useState("");
-
   const handleAddRule = async () => {
     if (!model) {
       setError("Modelo de atributos não carregado");

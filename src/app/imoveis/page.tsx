@@ -325,8 +325,24 @@ export default function Imoveis() {
                             const matchesCount = ann.matches?.length || 0;
                             return (
                               <div key={`${ann.id_property}-${ann.number}`} style={{ marginBottom: "1rem", padding: "0.75rem", background: "white", borderRadius: "6px", border: "1px solid #e5e7eb" }}>
-                                <div style={{ fontWeight: "600", marginBottom: "0.5rem" }}>
-                                  {ann.title}
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                                  <div style={{ fontWeight: "600", flex: 1 }}>
+                                    {ann.title}
+                                  </div>
+                                  <Link
+                                    href={`/anuncio/${ann.id_property}/${ann.number}`}
+                                    className="btn btn-primary"
+                                    style={{ 
+                                      color: "white",
+                                      padding: "6px 12px",
+                                      fontSize: "0.875rem",
+                                      textDecoration: "none",
+                                      whiteSpace: "nowrap",
+                                      marginLeft: "0.5rem"
+                                    }}
+                                  >
+                                    Ver Anúncio
+                                  </Link>
                                 </div>
                                 {matchesCount > 0 ? (
                                   <div>

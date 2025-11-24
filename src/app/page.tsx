@@ -123,28 +123,51 @@ export default function Home() {
       // Garantir que data é um array
       const announcementsArray = Array.isArray(data) ? data : [];
       
-      // Se o usuário está logado, o backend já ordena por compatibilidade, boost e data
-      // Se não está logado, ordena por boost e data
+      // O backend já ordena corretamente, mas aplicamos a mesma lógica aqui para garantir
+      // que a ordenação seja consistente mesmo se houver múltiplas chamadas
       const sorted = [...announcementsArray].sort((a, b) => {
-        // Se há compatibilidade, ordenar por ela primeiro
+        // Se há compatibilidade, aplicar lógica de boost
         if (userToCheck && a.compatibility !== undefined && b.compatibility !== undefined) {
           const aCompat = a.compatibility ?? 0;
           const bCompat = b.compatibility ?? 0;
-          if (Math.abs(aCompat - bCompat) > 0.001) {
+          
+          const aHasBoost = a.boost === true;
+          const bHasBoost = b.boost === true;
+          
+          // Calcular diferença absoluta de compatibilidade
+          const compatDiffAbs = Math.abs(aCompat - bCompat);
+          
+          // Se a diferença é maior que 4 pontos, ordenar apenas por compatibilidade
+          if (compatDiffAbs > 4) {
             return bCompat - aCompat; // Maior compatibilidade primeiro
+          }
+          
+          // Se a diferença é <= 4 pontos, aplicar boost
+          // Anúncios com boost aparecem antes de anúncios sem boost
+          if (aHasBoost && !bHasBoost) {
+            return -1; // A tem boost, aparece primeiro
+          }
+          if (!aHasBoost && bHasBoost) {
+            return 1; // B tem boost, aparece primeiro
+          }
+          
+          // Se ambos têm ou não têm boost, ordenar por compatibilidade
+          if (aCompat !== bCompat) {
+            return bCompat - aCompat; // Maior compatibilidade primeiro
+          }
+        } else {
+          // Se não há compatibilidade, ordenar por boost e data
+          const aBoost = a.boost === true ? 1 : 0;
+          const bBoost = b.boost === true ? 1 : 0;
+          if (aBoost !== bBoost) {
+            return bBoost - aBoost; // Boost primeiro
           }
         }
         
-        // Depois por boost
-        const aBoost = a.boost === true ? 1 : 0;
-        const bBoost = b.boost === true ? 1 : 0;
-        if (aBoost !== bBoost) {
-          return bBoost - aBoost; // Boost primeiro
-        }
-        // Se ambos têm ou não têm boost, ordenar por data
+        // Por fim, ordenar por data (mais recentes primeiro)
         const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
         const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bDate - aDate; // Mais recentes primeiro
+        return bDate - aDate;
       });
       
       setAnnouncements(sorted);

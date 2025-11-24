@@ -317,8 +317,41 @@ export default function VerAnuncio() {
     <div className="cadastro-page">
       <div className="cadastro-container">
         <div className="cadastro-header">
-          <h2>CASAR</h2>
-          <h3>{announcementData.title}</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+            <div style={{ flex: 1 }}>
+              <h2>CASAR</h2>
+              <h3>{announcementData.title}</h3>
+            </div>
+            {/* Botão de Editar - aparece apenas para admins - posicionado no topo */}
+            {isAdmin && (
+              <Link
+                href={`/anuncio/${propertyId}/${number}/editar`}
+                className="btn btn-primary"
+                style={{ 
+                  color: "white",
+                  fontSize: "1rem",
+                  padding: "10px 20px",
+                  fontWeight: "600",
+                  boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                  transition: "all 0.3s ease",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  whiteSpace: "nowrap"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 6px 12px rgba(0, 0, 0, 0.15)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
+                }}
+              >
+                ✏️ Editar
+              </Link>
+            )}
+          </div>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginTop: "0.5rem" }}>
             {announcementData.boost && (
               <span
@@ -526,17 +559,6 @@ export default function VerAnuncio() {
                   </button>
                 )}
               </>
-            )}
-            
-            {/* Botão de Editar - aparece apenas para admins */}
-            {isAdmin && (
-              <Link
-                href={`/anuncio/${propertyId}/${number}/editar`}
-                className="btn btn-primary"
-                style={{ color: "white" }}
-              >
-                Editar Anúncio
-              </Link>
             )}
             
             <button
