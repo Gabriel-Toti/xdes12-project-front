@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { announcement, property, user, match } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 type Announcement = {
   id_property: string;
@@ -75,7 +76,7 @@ export default function Anuncios() {
         router.push("/login");
         return;
       }
-      setError(err?.response?.data?.error || err?.message || "Erro ao verificar imóveis");
+      setError(getErrorMessage(err, "Erro ao verificar imóveis"));
       setHasProperties(false);
       setLoading(false);
     }
@@ -102,7 +103,7 @@ export default function Anuncios() {
         router.push("/login");
         return;
       }
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar anúncios");
+      setError(getErrorMessage(err, "Erro ao carregar anúncios"));
     } finally {
       setLoading(false);
     }
@@ -142,7 +143,7 @@ export default function Anuncios() {
       // Recarregar anúncios para atualizar a lista
       await loadAnnouncements();
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao registrar match');
+      setError(getErrorMessage(err, 'Erro ao registrar match'));
     } finally {
       setMatchingIds(prev => {
         const newSet = new Set(prev);

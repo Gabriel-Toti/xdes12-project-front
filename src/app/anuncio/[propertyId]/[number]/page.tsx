@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { announcement, user, match } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 function ImageCarousel({ images, title }: { images: string[]; title: string }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -193,7 +194,7 @@ export default function VerAnuncio() {
           router.push("/login");
           return;
         }
-        setError(err?.response?.data?.error || err?.message || "Erro ao carregar anúncio");
+        setError(getErrorMessage(err, "Erro ao carregar anúncio"));
       }
 
       if (userResult.status === 'fulfilled' && userResult.value) {
@@ -204,7 +205,7 @@ export default function VerAnuncio() {
         setUserMatches(matchesResult.value || []);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar dados");
+      setError(getErrorMessage(err, "Erro ao carregar dados"));
     } finally {
       setLoading(false);
     }
@@ -258,7 +259,7 @@ export default function VerAnuncio() {
         setUserMatches(updatedMatches || []);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || (isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
+      setError(getErrorMessage(err, isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
     } finally {
       setIsMatching(false);
     }

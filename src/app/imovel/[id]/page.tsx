@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { property, rule, preference } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 type ModelField = {
   type: string;
@@ -158,7 +159,7 @@ export default function EditarImovel() {
         router.push("/login");
         return;
       }
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar imóvel");
+      setError(getErrorMessage(err, "Erro ao carregar imóvel"));
     } finally {
       setLoading(false);
     }
@@ -184,7 +185,7 @@ export default function EditarImovel() {
       setSuccess("Imóvel atualizado com sucesso!");
       setTimeout(() => router.push("/imoveis"), 900);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao atualizar imóvel");
+      setError(getErrorMessage(err, "Erro ao atualizar imóvel"));
     } finally {
       setSaving(false);
     }
@@ -197,7 +198,7 @@ export default function EditarImovel() {
       setSuccess("Regra atualizada com sucesso!");
       setTimeout(() => setSuccess(null), 2000);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao atualizar regra");
+      setError(getErrorMessage(err, "Erro ao atualizar regra"));
     }
   };
 
@@ -244,7 +245,7 @@ export default function EditarImovel() {
       setSuccess("Regra excluída com sucesso!");
       setTimeout(() => setSuccess(null), 2000);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao excluir regra");
+      setError(getErrorMessage(err, "Erro ao excluir regra"));
     }
   };
 
@@ -283,7 +284,7 @@ export default function EditarImovel() {
       // Limpar o input
       e.target.value = '';
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao enviar imagens");
+      setError(getErrorMessage(err, "Erro ao enviar imagens"));
     } finally {
       setUploadingImage(false);
     }
@@ -302,7 +303,7 @@ export default function EditarImovel() {
       setSuccess("Imagem deletada com sucesso!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao deletar imagem");
+      setError(getErrorMessage(err, "Erro ao deletar imagem"));
     } finally {
       setDeletingImageId(null);
     }
@@ -332,7 +333,7 @@ export default function EditarImovel() {
       setSuccess("Regra adicionada com sucesso!");
       setTimeout(() => setSuccess(null), 2000);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao adicionar regra");
+      setError(getErrorMessage(err, "Erro ao adicionar regra"));
     }
   };
 

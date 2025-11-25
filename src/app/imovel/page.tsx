@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { property, rule, preference } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 export default function CadastroImovel() {
   const router = useRouter();
@@ -90,7 +91,7 @@ export default function CadastroImovel() {
         const config = await preference.getModel();
         setModel(config);
       } catch (err: any) {
-        setError(err?.response?.data?.error || err?.message || "Erro ao carregar modelo");
+        setError(getErrorMessage(err, "Erro ao carregar modelo"));
       } finally {
         setLoadingModel(false);
       }
@@ -245,7 +246,7 @@ export default function CadastroImovel() {
       setSuccess("Imóvel cadastrado com sucesso!");
       setTimeout(() => router.push("/imoveis"), 1200);
     } catch (err: any) {
-      const message = err?.response?.data?.error || err?.message || "Erro ao cadastrar imóvel";
+      const message = getErrorMessage(err, "Erro ao cadastrar imóvel");
       setError(message);
     } finally {
       setLoading(false);

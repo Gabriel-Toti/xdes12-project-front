@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { announcement, user, match, property } from "../utils/api";
 import Navbar from "../components/Navbar";
+import { getErrorMessage } from "../utils/error-handler";
 
 type Announcement = {
   id_property: string;
@@ -235,7 +236,7 @@ export default function Home() {
         await loadUserMatches();
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || (isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
+      setError(getErrorMessage(err, isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
     } finally {
       setMatchingIds(prev => {
         const newSet = new Set(prev);
