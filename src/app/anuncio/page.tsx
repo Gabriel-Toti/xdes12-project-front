@@ -97,14 +97,25 @@ export default function CadastroAnuncio() {
     setError(null);
 
     try {
-      await announcement.create({
+      // Se boost foi ativado, criar anúncio sem boost primeiro
+      // Depois redirecionar para pagamento
+      const boostValue = boost;
+      const createData = {
         title: titulo,
         description: descricao || undefined,
         average_cost: Number(valor),
-        boost: boost,
+        boost: false, // Criar sem boost primeiro
         vacancies: Number(vagas),
         id_property: imovelId
-      });
+      };
+
+      const result = await announcement.create(createData);
+
+      // Se boost foi solicitado, redirecionar para pagamento
+      if (boostValue && result && result.number) {
+        router.push(`/pagamento?type=boost&propertyId=${imovelId}&number=${result.number}`);
+        return;
+      }
 
       setSuccess("Anúncio criado com sucesso!");
       setTimeout(() => router.push("/imoveis"), 1200);

@@ -15,6 +15,7 @@ type Announcement = {
   boost: boolean | null;
   vacancies: number;
   created_at: string | null;
+  compatibility?: number;
   image_url?: string | null;
   images?: Array<{
     image_url: string;
@@ -53,7 +54,9 @@ export default function Home() {
   const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    // Carregar anúncios primeiro (sem compatibilidade)
     loadAnnouncements();
+    // Depois tentar carregar usuário (que pode recarregar anúncios com compatibilidade)
     loadCurrentUser();
   }, []);
 
@@ -66,11 +69,15 @@ export default function Home() {
         loadUserMatches(),
         loadUserProperties()
       ]);
+      // Recarregar anúncios para obter compatibilidade (passa o usuário como parâmetro)
+      await loadAnnouncements(userData);
     } catch (err) {
       // Usuário não está autenticado, não faz nada
       setCurrentUser(null);
       setUserMatches([]);
       setUserProperties([]);
+      // Carregar anúncios sem compatibilidade
+      await loadAnnouncements();
     }
   };
 
@@ -94,27 +101,73 @@ export default function Home() {
     }
   };
 
-  const loadAnnouncements = async () => {
+  const loadAnnouncements = async (user?: any) => {
     setLoading(true);
     setError(null);
     try {
-      // Usa a rota pública que não requer autenticação
-      const data = await announcement.listPublic();
+      // Se o usuário está logado, usa a rota autenticada para obter compatibilidade
+      // Caso contrário, usa a rota pública
+      const userToCheck = user !== undefined ? user : currentUser;
+      let data;
+      if (userToCheck) {
+        try {
+          data = await announcement.list();
+        } catch (err) {
+          // Se falhar a rota autenticada, tenta a pública
+          data = await announcement.listPublic();
+        }
+      } else {
+        data = await announcement.listPublic();
+      }
       
       // Garantir que data é um array
       const announcementsArray = Array.isArray(data) ? data : [];
       
-      // Backend já ordena por boost e data, mas garantimos aqui também
+      // O backend já ordena corretamente, mas aplicamos a mesma lógica aqui para garantir
+      // que a ordenação seja consistente mesmo se houver múltiplas chamadas
       const sorted = [...announcementsArray].sort((a, b) => {
-        const aBoost = a.boost === true ? 1 : 0;
-        const bBoost = b.boost === true ? 1 : 0;
-        if (aBoost !== bBoost) {
-          return bBoost - aBoost; // Boost primeiro
+        // Se há compatibilidade, aplicar lógica de boost
+        if (userToCheck && a.compatibility !== undefined && b.compatibility !== undefined) {
+          const aCompat = a.compatibility ?? 0;
+          const bCompat = b.compatibility ?? 0;
+          
+          const aHasBoost = a.boost === true;
+          const bHasBoost = b.boost === true;
+          
+          // Calcular diferença absoluta de compatibilidade
+          const compatDiffAbs = Math.abs(aCompat - bCompat);
+          
+          // Se a diferença é maior que 4 pontos, ordenar apenas por compatibilidade
+          if (compatDiffAbs > 4) {
+            return bCompat - aCompat; // Maior compatibilidade primeiro
+          }
+          
+          // Se a diferença é <= 4 pontos, aplicar boost
+          // Anúncios com boost aparecem antes de anúncios sem boost
+          if (aHasBoost && !bHasBoost) {
+            return -1; // A tem boost, aparece primeiro
+          }
+          if (!aHasBoost && bHasBoost) {
+            return 1; // B tem boost, aparece primeiro
+          }
+          
+          // Se ambos têm ou não têm boost, ordenar por compatibilidade
+          if (aCompat !== bCompat) {
+            return bCompat - aCompat; // Maior compatibilidade primeiro
+          }
+        } else {
+          // Se não há compatibilidade, ordenar por boost e data
+          const aBoost = a.boost === true ? 1 : 0;
+          const bBoost = b.boost === true ? 1 : 0;
+          if (aBoost !== bBoost) {
+            return bBoost - aBoost; // Boost primeiro
+          }
         }
-        // Se ambos têm ou não têm boost, ordenar por data
+        
+        // Por fim, ordenar por data (mais recentes primeiro)
         const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
         const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bDate - aDate; // Mais recentes primeiro
+        return bDate - aDate;
       });
       
       setAnnouncements(sorted);
@@ -258,7 +311,7 @@ export default function Home() {
                     })()}
 
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
                         <div className="card-title">{ann.title}</div>
                         {ann.boost && (
                           <span
@@ -273,6 +326,27 @@ export default function Home() {
                           >
                             BOOST
                           </span>
+                        )}
+                        {ann.compatibility !== undefined && ann.compatibility !== null && currentUser && !userProperties.some(p => p.id === ann.id_property) && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <span
+                              style={{
+                                background: ann.compatibility >= 0.7 ? "#10b981" : ann.compatibility >= 0.4 ? "#f59e0b" : "#ef4444",
+                                color: "white",
+                                padding: "4px 12px",
+                                borderRadius: "20px",
+                                fontSize: "0.75rem",
+                                fontWeight: "bold",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.25rem"
+                              }}
+                              title={`Compatibilidade: ${ann.compatibility}%`}
+                            >
+                              <span>🎯</span>
+                              <span>{ann.compatibility}%</span>
+                            </span>
+                          </div>
                         )}
                       </div>
                       <div className="card-subtitle" style={{ marginBottom: 8 }}>

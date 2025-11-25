@@ -21,6 +21,7 @@ export default function Preferencias() {
   const [isEditing, setIsEditing] = useState(false);
   const [originalFormValues, setOriginalFormValues] = useState<Record<string, any>>({});
   const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [preferenceWeights, setPreferenceWeights] = useState<Record<string, number>>({});
   const [preferences, setPreferences] = useState<PreferenceEntry[]>([]);
   const [preferencesToDelete, setPreferencesToDelete] = useState<Set<string>>(new Set());
   const [loadingPreferences, setLoadingPreferences] = useState(false);
@@ -92,9 +93,13 @@ export default function Preferencias() {
             const existingPrefs = preferencesData.value || [];
             setPreferences(existingPrefs);
 
+            const weights: Record<string, number> = {};
             existingPrefs.forEach((pref: PreferenceEntry) => {
               const def = json[pref.name];
               if (!def) return;
+
+              // Armazenar peso
+              weights[pref.name] = pref.weight || 5;
 
               if (def.type === "closed") {
                 if (multiSelectFields.has(pref.name)) {
@@ -110,6 +115,7 @@ export default function Preferencias() {
                 defaults[pref.name] = pref.value;
               }
             });
+            setPreferenceWeights(weights);
           }
 
           setFormValues(defaults);
@@ -317,15 +323,17 @@ export default function Preferencias() {
         }
 
         if (isFilled) {
+          const weight = preferenceWeights[name] || 5; // Default weight 5
           if (existingPref) {
-            // Check if value changed
+            // Check if value or weight changed
             const valueChanged = existingPref.value !== formattedValue;
-            if (valueChanged) {
-              updates.push({ name, value: formattedValue });
+            const weightChanged = existingPref.weight !== weight;
+            if (valueChanged || weightChanged) {
+              updates.push({ name, value: formattedValue, weight });
             }
           } else {
             // New preference
-            newPreferences.push({ name, value: formattedValue, weight: 1 });
+            newPreferences.push({ name, value: formattedValue, weight });
           }
         }
       }
@@ -680,6 +688,55 @@ export default function Preferencias() {
                     disabled={isDisabled}
                   />
                 )}
+
+                {/* Campo de peso - aparece apenas quando a preferência está preenchida */}
+                {isEditing && (() => {
+                  const hasValue = (() => {
+                    if (def.type === "closed") {
+                      if (multiSelectFields.has(name)) {
+                        return Array.isArray(formValues[name]) && formValues[name].length > 0;
+                      }
+                      return formValues[name] !== "" && formValues[name] !== null && formValues[name] !== undefined;
+                    } else if (def.type === "location") {
+                      return formValues[name] !== "" && !isNaN(Number(formValues[name]));
+                    } else if (def.type === "schedule") {
+                      return Array.isArray(formValues[name]?.entries) && formValues[name].entries.length > 0;
+                    }
+                    return formValues[name] !== "" && formValues[name] !== null && formValues[name] !== undefined;
+                  })();
+
+                  if (!hasValue) return null;
+
+                  return (
+                    <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <label style={{ fontSize: "0.875rem", color: "#666", minWidth: "120px" }}>
+                        Peso (1-10):
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        className="form-input"
+                        style={{ width: "80px" }}
+                        value={preferenceWeights[name] || 5}
+                        onChange={(e) => {
+                          const weight = Math.max(1, Math.min(10, parseInt(e.target.value) || 5));
+                          setPreferenceWeights((p) => ({ ...p, [name]: weight }));
+                        }}
+                        disabled={isDisabled}
+                      />
+                      <span style={{ fontSize: "0.75rem", color: "#666" }}>
+                        {(() => {
+                          const weight = preferenceWeights[name] || 5;
+                          if (weight === 10) return "Máxima importância";
+                          if (weight >= 7) return "Alta importância";
+                          if (weight >= 4) return "Média importância";
+                          return "Baixa importância";
+                        })()}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}

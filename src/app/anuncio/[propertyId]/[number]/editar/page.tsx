@@ -23,6 +23,7 @@ export default function EditarAnuncio() {
   const [images, setImages] = useState<Array<{ id: string; image_url: string }>>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const [originalBoost, setOriginalBoost] = useState(false);
 
   const maxDesc = 128;
 
@@ -41,7 +42,9 @@ export default function EditarAnuncio() {
       setTitulo(data.title || "");
       setDescricao(data.description || "");
       setValor(data.average_cost || "");
-      setBoost(data.boost === true);
+      const boostValue = data.boost === true;
+      setBoost(boostValue);
+      setOriginalBoost(boostValue);
       setVagas(data.vacancies || "");
       // Carregar imagens do anúncio com IDs
       const loadedImages = data.images?.map((img: any) => ({
@@ -162,6 +165,12 @@ export default function EditarAnuncio() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // Se boost foi ativado (mudou de false para true), redirecionar para página de pagamento
+    if (boost && !originalBoost) {
+      router.push(`/pagamento?type=boost&propertyId=${propertyId}&number=${number}`);
+      return;
+    }
 
     setSaving(true);
     setError(null);

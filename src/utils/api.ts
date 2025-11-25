@@ -257,3 +257,18 @@ export const rule = {
     return response.data;
   }
 }
+
+export const payment = {
+  process: async (data: {
+    type: "boost" | "premium";
+    propertyId?: string;
+    number?: number;
+    cardNumber: string;
+    cardHolder: string;
+    expiryDate: string;
+    cvv: string;
+  }) => {
+    const response = await api.post(`/payment/process`, data);
+    return response.data;
+  }
+}
