@@ -12,6 +12,28 @@ const api = axios.create({
   baseURL: API_URL || undefined,
   withCredentials: true,
 });
+
+// Interceptor para garantir que erros sejam propagados corretamente
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Garante que o erro tenha a estrutura esperada
+    if (error.response && error.response.data) {
+      // Se o backend retornou um erro no formato esperado, mantém
+      if (!error.response.data.error && error.response.data.message) {
+        // Se o backend retornou apenas message, formata para o formato esperado
+        error.response.data = {
+          error: {
+            type: error.response.status >= 500 ? 'Server Error' : 'Client Error',
+            message: error.response.data.message
+          }
+        };
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 console.log('API URL:', API_URL)
 
 export { api };
@@ -22,6 +44,14 @@ export const user = {
     password: string;
   }) => {
     const response = await api.post(`/login`, data);
+    return response.data;
+  },
+  requestPasswordReset: async (email: string) => {
+    const response = await api.post(`/password/forgot`, { email });
+    return response.data;
+  },
+  resetPassword: async (data: { email: string; code: string; password: string }) => {
+    const response = await api.post(`/password/reset`, data);
     return response.data;
   },
   register: async (data: {

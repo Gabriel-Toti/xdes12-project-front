@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { announcement, property } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 export default function EditarAnuncio() {
   const router = useRouter();
@@ -58,7 +59,7 @@ export default function EditarAnuncio() {
         router.push("/login");
         return;
       }
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar anúncio");
+      setError(getErrorMessage(err, "Erro ao carregar anúncio"));
     } finally {
       setLoading(false);
     }
@@ -137,7 +138,7 @@ export default function EditarAnuncio() {
       // Limpar o input
       e.target.value = '';
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao enviar imagens");
+      setError(getErrorMessage(err, "Erro ao enviar imagens"));
     } finally {
       setUploadingImage(false);
     }
@@ -156,7 +157,7 @@ export default function EditarAnuncio() {
       setSuccess("Imagem deletada com sucesso!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao deletar imagem");
+      setError(getErrorMessage(err, "Erro ao deletar imagem"));
     } finally {
       setDeletingImageId(null);
     }

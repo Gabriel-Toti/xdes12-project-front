@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { property, announcement, match } from "@/utils/api";
 import Navbar from "@/components/Navbar";
+import { getErrorMessage } from "@/utils/error-handler";
 
 type Property = {
   id: string;
@@ -121,7 +122,7 @@ export default function Imoveis() {
       });
       await loadProperties();
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao aceitar match');
+      setError(getErrorMessage(err, 'Erro ao aceitar match'));
     } finally {
       setProcessingMatches(prev => {
         const newSet = new Set(prev);
@@ -144,7 +145,7 @@ export default function Imoveis() {
       await match.delete(propertyId, number, matchUserId);
       await loadProperties();
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao recusar match');
+      setError(getErrorMessage(err, 'Erro ao recusar match'));
     } finally {
       setProcessingMatches(prev => {
         const newSet = new Set(prev);

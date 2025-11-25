@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { announcement, property } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 import Navbar from "@/components/Navbar";
 
 export default function CadastroAnuncio() {
@@ -47,7 +48,7 @@ export default function CadastroAnuncio() {
         return;
       }
       setIsAuthorized(false);
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar imóveis");
+      setError(getErrorMessage(err, "Erro ao carregar imóveis"));
     } finally {
       setLoadingProperties(false);
     }

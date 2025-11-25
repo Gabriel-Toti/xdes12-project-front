@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { LoginDto } from "../../types/index";
 import { user } from "../../utils/api";
+import { getErrorMessage } from "../../utils/error-handler";
 
 export default function Login() {
   const router = useRouter();
@@ -34,9 +35,7 @@ export default function Login() {
 
       router.push("/conta");
     } catch (err: any) {
-      setError(
-        err.response?.data?.error || err.message || "Erro ao fazer login"
-      );
+      setError(getErrorMessage(err, "Erro ao fazer login"));
     } finally {
       setLoading(false);
     }
@@ -71,6 +70,22 @@ export default function Login() {
               onChange={(e) => setSenha(e.target.value)}
               required
             />
+            <div style={{ textAlign: "right", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={() => router.push("/recuperar-senha")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#667eea",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  textDecoration: "underline"
+                }}
+              >
+                Esqueci minha senha
+              </button>
+            </div>
           </div>
 
           {error && <div className="error-message">{error}</div>}

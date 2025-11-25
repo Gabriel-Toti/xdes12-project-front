@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { payment } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 export default function Pagamento() {
   const router = useRouter();
@@ -118,7 +119,7 @@ export default function Pagamento() {
         router.push("/conta");
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao processar pagamento");
+      setError(getErrorMessage(err, "Erro ao processar pagamento"));
     } finally {
       setLoading(false);
     }

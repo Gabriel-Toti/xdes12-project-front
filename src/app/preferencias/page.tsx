@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { preference } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 type ModelField = {
   type: "closed" | "location" | "schedule" | string;
@@ -122,7 +123,7 @@ export default function Preferencias() {
           setOriginalFormValues(JSON.parse(JSON.stringify(defaults)));
         }
       } catch (err: any) {
-        setError(err?.message || "Erro ao carregar dados");
+        setError(getErrorMessage(err, "Erro ao carregar dados"));
       } finally {
         setLoadingModel(false);
         setLoadingPreferences(false);
@@ -397,7 +398,7 @@ export default function Preferencias() {
       setSuccess("Preferências salvas com sucesso!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao salvar preferências");
+      setError(getErrorMessage(err, "Erro ao salvar preferências"));
     } finally {
       setSubmitting(false);
     }
