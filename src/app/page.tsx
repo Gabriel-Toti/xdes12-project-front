@@ -264,9 +264,11 @@ export default function Home() {
           ) : announcements.length === 0 ? (
             <div style={{ textAlign: "center", padding: "2rem" }}>
               <p>Nenhum anúncio disponível no momento.</p>
-              <Link href="/login" className="btn btn-primary" style={{ marginTop: "1rem", color: "white" }}>
-                Faça login para criar anúncios
-              </Link>
+              {!currentUser && (
+                <Link href="/login" className="btn btn-primary" style={{ marginTop: "1rem", color: "white" }}>
+                  Faça login para criar anúncios
+                </Link>
+              )}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
