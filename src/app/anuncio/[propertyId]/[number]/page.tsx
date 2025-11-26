@@ -5,6 +5,11 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { announcement, user, match, preference } from "@/utils/api";
 import { getErrorMessage } from "@/utils/error-handler";
+import {
+  calculateWeightedCompatibilityDetails,
+  PreferenceWithWeight,
+  RuleAttribute,
+} from "@/utils/compatibility";
 
 function ImageCarousel({ images, title }: { images: string[]; title: string }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -165,9 +170,9 @@ export default function VerAnuncio() {
   const [announcementData, setAnnouncementData] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userMatches, setUserMatches] = useState<Array<{ id_user: string; id_property: string; number_announcement: number; [key: string]: any }>>([]);
-  const [userPreferences, setUserPreferences] = useState<Array<{ name: string; value: string; weight: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [userPreferences, setUserPreferences] = useState<PreferenceWithWeight[]>([]);
 
   useEffect(() => {
     if (propertyId && number) {
@@ -207,8 +212,18 @@ export default function VerAnuncio() {
         setUserMatches(matchesResult.value || []);
       }
 
-      if (preferencesResult.status === 'fulfilled') {
-        setUserPreferences(preferencesResult.value || []);
+      if (preferencesResult.status === "fulfilled") {
+        const prefs = (preferencesResult.value || []) as Array<{
+          name: string;
+          value: string;
+          weight: number;
+        }>;
+        const mapped: PreferenceWithWeight[] = prefs.map((p) => ({
+          name: p.name,
+          value: p.value,
+          weight: p.weight ?? 5,
+        }));
+        setUserPreferences(mapped);
       }
     } catch (err: any) {
       setError(getErrorMessage(err, "Erro ao carregar dados"));
@@ -284,98 +299,6 @@ export default function VerAnuncio() {
   const formatDate = (date: string | null) => {
     if (!date) return "-";
     return new Intl.DateTimeFormat("pt-BR", { dateStyle: "long" }).format(new Date(date));
-  };
-
-  // Função para comparar preferências com regras
-  const comparePreferencesWithRules = () => {
-    if (!userPreferences || userPreferences.length === 0) {
-      return null;
-    }
-
-    const comparisons: Array<{
-      name: string;
-      userValue: string | null;
-      propertyValue: string | null;
-      compatible: boolean;
-      hasPropertyRule: boolean;
-    }> = [];
-
-    // Mapear regras do imóvel por nome
-    const rulesMap = new Map(
-      property?.rule?.map((r: any) => [r.attribute.name, r.attribute.value]) || []
-    );
-
-    // Para cada preferência do usuário, verificar se há uma regra correspondente
-    userPreferences.forEach(pref => {
-      if (rulesMap.has(pref.name)) {
-        const propertyValue = rulesMap.get(pref.name);
-        if (propertyValue && typeof propertyValue === 'string') {
-          const isCompatible = checkCompatibility(pref.name, pref.value, propertyValue);
-          
-          comparisons.push({
-            name: pref.name,
-            userValue: pref.value,
-            propertyValue: propertyValue,
-            compatible: isCompatible,
-            hasPropertyRule: true
-          });
-        }
-      } else {
-        // Preferência do usuário sem regra correspondente no imóvel
-        comparisons.push({
-          name: pref.name,
-          userValue: pref.value,
-          propertyValue: null,
-          compatible: false,
-          hasPropertyRule: false
-        });
-      }
-    });
-
-    // Adicionar regras que não têm preferência correspondente
-    if (property?.rule) {
-      property.rule.forEach((r: any) => {
-        if (!userPreferences.some(p => p.name === r.attribute.name)) {
-          comparisons.push({
-            name: r.attribute.name,
-            userValue: null,
-            propertyValue: r.attribute.value,
-            compatible: false,
-            hasPropertyRule: true
-          });
-        }
-      });
-    }
-
-    return comparisons;
-  };
-
-  // Função auxiliar para verificar compatibilidade entre valores
-  const checkCompatibility = (name: string, userValue: string, propertyValue: string): boolean => {
-    // Para campos de múltipla escolha (como Estilo de Convivência, Hobbies)
-    if (userValue.includes(',') || propertyValue.includes(',')) {
-      const userValues = userValue.split(',').map(v => v.trim().toLowerCase());
-      const propertyValues = propertyValue.split(',').map(v => v.trim().toLowerCase());
-      // Verifica se há alguma interseção
-      return userValues.some(uv => propertyValues.includes(uv));
-    }
-
-    // Para horários (formato: "22h-08h; 14h-16h")
-    if (name.toLowerCase().includes('horário') || name.toLowerCase().includes('silêncio')) {
-      return true; // Considera compatível se ambos têm valores definidos
-    }
-
-    // Para localização (distância em km)
-    if (name.toLowerCase().includes('localização') || name.toLowerCase().includes('distância')) {
-      const userDist = parseFloat(userValue);
-      const propertyDist = parseFloat(propertyValue);
-      if (!isNaN(userDist) && !isNaN(propertyDist)) {
-        return propertyDist <= userDist; // Propriedade está dentro do raio aceitável
-      }
-    }
-
-    // Para outros campos, verifica igualdade exata (case-insensitive)
-    return userValue.trim().toLowerCase() === propertyValue.trim().toLowerCase();
   };
 
   if (loading) {
@@ -599,101 +522,169 @@ export default function VerAnuncio() {
             )}
           </div>
 
-          {/* Seção de Comparação de Preferências vs Regras */}
-          {currentUser && !isAdmin && userPreferences.length > 0 && (() => {
-            const comparisons = comparePreferencesWithRules();
-            if (!comparisons || comparisons.length === 0) return null;
+          {/* Seção de Comparação Detalhada de Compatibilidade (ponderada por peso) */}
+          {currentUser && !isAdmin && userPreferences.length > 0 && property?.rule && property.rule.length > 0 && (() => {
+            const rules: RuleAttribute[] =
+              property.rule.map((r: any) => ({
+                name: r.attribute?.name,
+                value: r.attribute?.value,
+              })) || [];
 
-            const compatibleCount = comparisons.filter(c => c.compatible && c.hasPropertyRule && c.userValue).length;
-            const incompatibleCount = comparisons.filter(c => !c.compatible && c.hasPropertyRule && c.userValue).length;
-            const noPropertyRuleCount = comparisons.filter(c => !c.hasPropertyRule && c.userValue).length;
-            const noUserPrefCount = comparisons.filter(c => !c.userValue && c.hasPropertyRule).length;
-            const totalCount = comparisons.length;
+            const { totalScore, totalWeight, details } =
+              calculateWeightedCompatibilityDetails(userPreferences, rules);
+
+            if (!details || details.length === 0) return null;
+
+            const evaluated = details.filter(
+              (d) => d.hasPropertyRule && d.hasUserPreference && d.baseScore !== null && d.weight !== null
+            );
+
+            const compatibleCount = evaluated.filter((d) => (d.baseScore ?? 0) > 0).length;
+            const incompatibleCount = evaluated.filter((d) => (d.baseScore ?? 0) === 0).length;
+            const noPropertyRuleCount = details.filter(
+              (d) => !d.hasPropertyRule && d.hasUserPreference
+            ).length;
+            const noUserPrefCount = details.filter(
+              (d) => d.hasPropertyRule && !d.hasUserPreference
+            ).length;
+            const totalEvaluated = evaluated.length;
+
+            const percentage = Math.round(totalScore * 100);
+
+            const ratio = totalEvaluated > 0 ? totalScore : 0;
+
+            const summaryBg =
+              ratio >= 0.7 ? "#f0fdf4" : ratio >= 0.4 ? "#fffbeb" : "#fef2f2";
+            const summaryBorder =
+              ratio >= 0.7 ? "#10b981" : ratio >= 0.4 ? "#f59e0b" : "#ef4444";
+            const summaryColor =
+              ratio >= 0.7 ? "#059669" : ratio >= 0.4 ? "#d97706" : "#dc2626";
 
             return (
-              <div className="card" style={{ 
-                padding: "1.5rem", 
-                marginBottom: "1.5rem",
-                border: `2px solid ${compatibleCount / totalCount >= 0.7 ? "#10b981" : compatibleCount / totalCount >= 0.4 ? "#f59e0b" : "#ef4444"}`
-              }}>
-                <h4 style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <div
+                className="card"
+                style={{
+                  padding: "1.5rem",
+                  marginBottom: "1.5rem",
+                  border: `2px solid ${summaryBorder}`,
+                }}
+              >
+                <h4
+                  style={{
+                    marginBottom: "1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
                   <span>🔍</span>
                   <span>Comparação Detalhada: Suas Preferências vs Regras do Imóvel</span>
                 </h4>
-                
-                <div style={{ 
-                  padding: "1rem", 
-                  background: compatibleCount / totalCount >= 0.7 ? "#f0fdf4" : compatibleCount / totalCount >= 0.4 ? "#fffbeb" : "#fef2f2",
-                  borderRadius: "8px",
-                  marginBottom: "1rem"
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+
+                <div
+                  style={{
+                    padding: "1rem",
+                    background: summaryBg,
+                    borderRadius: "8px",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.5rem",
+                    }}
+                  >
                     <span style={{ fontWeight: "600" }}>
-                      {compatibleCount} de {totalCount} critérios compatíveis
+                      {compatibleCount} de {totalEvaluated} critérios avaliados compatíveis
                     </span>
-                    <span style={{ 
-                      fontSize: "1.5rem", 
-                      fontWeight: "bold",
-                      color: compatibleCount / totalCount >= 0.7 ? "#059669" : compatibleCount / totalCount >= 0.4 ? "#d97706" : "#dc2626"
-                    }}>
-                      {Math.round((compatibleCount / totalCount) * 100)}%
+                    <span
+                      style={{
+                        fontSize: "1.5rem",
+                        fontWeight: "bold",
+                        color: summaryColor,
+                      }}
+                    >
+                      {totalEvaluated > 0 ? `${percentage}%` : "0%"}
                     </span>
                   </div>
-                  <div style={{ 
-                    width: "100%", 
-                    height: "12px", 
-                    background: "#e5e7eb", 
-                    borderRadius: "6px", 
-                    overflow: "hidden"
-                  }}>
-                    <div style={{
-                      width: `${(compatibleCount / totalCount) * 100}%`,
-                      height: "100%",
-                      background: compatibleCount / totalCount >= 0.7 ? "#10b981" : compatibleCount / totalCount >= 0.4 ? "#f59e0b" : "#ef4444",
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "12px",
+                      background: "#e5e7eb",
                       borderRadius: "6px",
-                      transition: "width 0.5s ease"
-                    }} />
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${totalEvaluated > 0 ? percentage : 0}%`,
+                        height: "100%",
+                        background: summaryBorder,
+                        borderRadius: "6px",
+                        transition: "width 0.5s ease",
+                      }}
+                    />
                   </div>
 
-                  {/* Resumo detalhado das categorias */}
-                  <div style={{ 
-                    marginTop: "1rem", 
-                    padding: "0.75rem", 
-                    background: "white", 
-                    borderRadius: "6px",
-                    fontSize: "0.875rem",
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                    gap: "0.5rem"
-                  }}>
+                  {/* Resumo das categorias */}
+                  <div
+                    style={{
+                      marginTop: "1rem",
+                      padding: "0.75rem",
+                      background: "white",
+                      borderRadius: "6px",
+                      fontSize: "0.875rem",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                      gap: "0.5rem",
+                    }}
+                  >
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                       <span style={{ fontSize: "1.25rem" }}>✅</span>
-                      <span><strong>{compatibleCount}</strong> compatíveis</span>
+                      <span>
+                        <strong>{compatibleCount}</strong> compatíveis
+                      </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                       <span style={{ fontSize: "1.25rem" }}>❌</span>
-                      <span><strong>{incompatibleCount}</strong> incompatíveis</span>
+                      <span>
+                        <strong>{incompatibleCount}</strong> incompatíveis
+                      </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                       <span style={{ fontSize: "1.25rem" }}>⚠️</span>
-                      <span><strong>{noPropertyRuleCount}</strong> sem regra no imóvel</span>
+                      <span>
+                        <strong>{noPropertyRuleCount}</strong> sem regra no imóvel
+                      </span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                       <span style={{ fontSize: "1.25rem" }}>ℹ️</span>
-                      <span><strong>{noUserPrefCount}</strong> sem sua preferência</span>
+                      <span>
+                        <strong>{noUserPrefCount}</strong> sem sua preferência
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  {comparisons.map((comp, idx) => {
-                    // Determinar o tipo de comparação
-                    const isCompatible = comp.compatible && comp.hasPropertyRule && comp.userValue;
-                    const isIncompatible = !comp.compatible && comp.hasPropertyRule && comp.userValue;
-                    const noPropertyRule = !comp.hasPropertyRule && comp.userValue;
-                    const noUserPreference = !comp.userValue && comp.hasPropertyRule;
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+                >
+                  {details.map((comp, idx) => {
+                    const isEvaluated =
+                      comp.hasPropertyRule &&
+                      comp.hasUserPreference &&
+                      comp.baseScore !== null &&
+                      comp.weight !== null;
 
-                    // Definir cores e ícones baseado no tipo
+                    const isCompatible = isEvaluated && (comp.baseScore ?? 0) > 0;
+                    const isIncompatible = isEvaluated && (comp.baseScore ?? 0) === 0;
+                    const noPropertyRule = !comp.hasPropertyRule && comp.hasUserPreference;
+                    const noUserPreference = comp.hasPropertyRule && !comp.hasUserPreference;
+
                     let bgColor = "#f9fafb";
                     let borderColor = "#e5e7eb";
                     let icon = "ℹ️";
@@ -705,80 +696,131 @@ export default function VerAnuncio() {
                       borderColor = "#10b981";
                       icon = "✅";
                       titleColor = "#065f46";
-                      message = "✓ Este critério está de acordo com suas preferências";
+                      message = "✓ Este critério está de acordo com suas preferências (ponderado pelo peso definido).";
                     } else if (isIncompatible) {
                       bgColor = "#fef2f2";
                       borderColor = "#ef4444";
                       icon = "❌";
                       titleColor = "#991b1b";
-                      message = "⚠️ Este critério pode não atender suas expectativas";
+                      message = "⚠️ Este critério pode não atender suas expectativas.";
                     } else if (noPropertyRule) {
                       bgColor = "#fffbeb";
                       borderColor = "#f59e0b";
                       icon = "⚠️";
                       titleColor = "#92400e";
-                      message = "ℹ️ O imóvel não definiu uma regra específica para este critério";
+                      message =
+                        "ℹ️ O imóvel não definiu uma regra específica para este critério (não impacta no cálculo, apenas sinaliza ausência de regra).";
                     } else if (noUserPreference) {
                       bgColor = "#f3f4f6";
                       borderColor = "#9ca3af";
                       icon = "ℹ️";
                       titleColor = "#4b5563";
-                      message = "ℹ️ Você não definiu uma preferência para este critério";
+                      message =
+                        "ℹ️ Você não definiu uma preferência para este critério (não impacta no cálculo, apenas sinaliza ausência de preferência).";
                     }
 
                     return (
-                      <div 
-                        key={idx} 
-                        style={{ 
+                      <div
+                        key={idx}
+                        style={{
                           padding: "1rem",
                           background: bgColor,
                           borderRadius: "8px",
-                          border: `2px solid ${borderColor}`
+                          border: `2px solid ${borderColor}`,
                         }}
                       >
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                          <div style={{ 
-                            fontSize: "1.5rem",
-                            flexShrink: 0,
-                            marginTop: "-2px"
-                          }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "0.75rem",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "1.5rem",
+                              flexShrink: 0,
+                              marginTop: "-2px",
+                            }}
+                          >
                             {icon}
                           </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ 
-                              fontWeight: "bold", 
-                              marginBottom: "0.5rem",
-                              color: titleColor
-                            }}>
+                            <div
+                              style={{
+                                fontWeight: "bold",
+                                marginBottom: "0.25rem",
+                                color: titleColor,
+                              }}
+                            >
                               {comp.name}
                             </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize: "0.875rem" }}>
+                            {comp.weight !== null && (
+                              <div
+                                style={{
+                                  fontSize: "0.75rem",
+                                  color: "#6b7280",
+                                  marginBottom: "0.5rem",
+                                }}
+                              >
+                                Peso definido por você:{" "}
+                                <strong>{comp.weight}</strong>
+                              </div>
+                            )}
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: "1rem",
+                                fontSize: "0.875rem",
+                              }}
+                            >
                               <div>
-                                <div style={{ color: "#666", marginBottom: "0.25rem" }}>Sua preferência:</div>
-                                <div style={{ 
-                                  fontWeight: "600",
-                                  color: comp.userValue ? "#111" : "#999"
-                                }}>
+                                <div
+                                  style={{
+                                    color: "#666",
+                                    marginBottom: "0.25rem",
+                                  }}
+                                >
+                                  Sua preferência:
+                                </div>
+                                <div
+                                  style={{
+                                    fontWeight: "600",
+                                    color: comp.userValue ? "#111" : "#999",
+                                  }}
+                                >
                                   {comp.userValue || "Não definida"}
                                 </div>
                               </div>
                               <div>
-                                <div style={{ color: "#666", marginBottom: "0.25rem" }}>Regra do imóvel:</div>
-                                <div style={{ 
-                                  fontWeight: "600",
-                                  color: comp.propertyValue ? "#111" : "#999"
-                                }}>
+                                <div
+                                  style={{
+                                    color: "#666",
+                                    marginBottom: "0.25rem",
+                                  }}
+                                >
+                                  Regra do imóvel:
+                                </div>
+                                <div
+                                  style={{
+                                    fontWeight: "600",
+                                    color: comp.propertyValue ? "#111" : "#999",
+                                  }}
+                                >
                                   {comp.propertyValue || "Não definida"}
                                 </div>
                               </div>
                             </div>
                             {message && (
-                              <div style={{ 
-                                marginTop: "0.5rem", 
-                                fontSize: "0.75rem", 
-                                color: titleColor,
-                                fontStyle: "italic"
-                              }}>
+                              <div
+                                style={{
+                                  marginTop: "0.5rem",
+                                  fontSize: "0.75rem",
+                                  color: titleColor,
+                                  fontStyle: "italic",
+                                }}
+                              >
                                 {message}
                               </div>
                             )}

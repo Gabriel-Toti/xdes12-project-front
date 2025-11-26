@@ -11,6 +11,8 @@ const api = axios.create({
   // If API_URL is empty, axios will use relative URLs (useful for same-origin proxies).
   baseURL: API_URL || undefined,
   withCredentials: true,
+  // Evita requisições presas indefinidamente e melhora UX em fluxos com redirecionamento
+  timeout: 5000, // 5 segundos
 });
 
 // Interceptor para garantir que erros sejam propagados corretamente
@@ -305,12 +307,29 @@ export const payment = {
 
 export const notification = {
   list: async () => {
-    const response = await api.get(`/notification`);
-    return response.data;
+    try {
+      const response = await api.get(`/notification`);
+      return response.data;
+    } catch (err: any) {
+      // Trata especificamente timeout como "sem notificações" para não quebrar a UI
+      if (err.code === "ECONNABORTED") {
+        console.warn("Tempo limite ao carregar notificações. Considerando como lista vazia.");
+        return [];
+      }
+      throw err;
+    }
   },
   getUnreadCount: async () => {
-    const response = await api.get(`/notification/unread-count`);
-    return response.data;
+    try {
+      const response = await api.get(`/notification/unread-count`);
+      return response.data;
+    } catch (err: any) {
+      if (err.code === "ECONNABORTED") {
+        console.warn("Tempo limite ao carregar contador de notificações. Considerando 0 não lidas.");
+        return { count: 0 };
+      }
+      throw err;
+    }
   },
   markAsRead: async (id: string) => {
     const response = await api.put(`/notification/${id}/read`);

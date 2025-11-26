@@ -41,7 +41,8 @@ export default function NotificationBell() {
     setLoading(true);
     try {
       const data = await notification.list();
-      setNotifications(data);
+      // Garante que o estado nunca fique "preso" em loading se a API retornar algo inesperado
+      setNotifications(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Erro ao carregar notificações:", err);
     } finally {
