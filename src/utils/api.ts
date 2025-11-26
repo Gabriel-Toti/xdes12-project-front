@@ -302,3 +302,22 @@ export const payment = {
     return response.data;
   }
 }
+
+export const notification = {
+  list: async () => {
+    const response = await api.get(`/notification`);
+    return response.data;
+  },
+  getUnreadCount: async () => {
+    const response = await api.get(`/notification/unread-count`);
+    return response.data;
+  },
+  markAsRead: async (id: string) => {
+    const response = await api.put(`/notification/${id}/read`);
+    return response.data;
+  },
+  markAllAsRead: async () => {
+    const response = await api.put(`/notification/read-all`);
+    return response.data;
+  }
+}

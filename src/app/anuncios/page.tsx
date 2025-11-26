@@ -287,8 +287,15 @@ export default function Anuncios() {
                   key={`${ann.id_property}-${ann.number}`}
                   className="card"
                   style={{
-                    border: ann.boost ? "2px solid #f59e0b" : "1px solid #e5e7eb",
-                    background: ann.boost ? "#fffbeb" : "white"
+                    border: ann.boost ? "2px solid #f59e0b" : 
+                            (ann.compatibility !== undefined && ann.compatibility >= 0.7) ? "2px solid #10b981" :
+                            "1px solid #e5e7eb",
+                    background: ann.boost ? "#fffbeb" : 
+                               (ann.compatibility !== undefined && ann.compatibility >= 0.7) ? "#f0fdf4" :
+                               "white",
+                    boxShadow: ann.compatibility !== undefined && ann.compatibility >= 0.7 ? 
+                               "0 4px 12px rgba(16, 185, 129, 0.2)" : 
+                               undefined
                   }}
                 >
                   <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -344,27 +351,63 @@ export default function Anuncios() {
                               fontWeight: "bold"
                             }}
                           >
-                            BOOST
+                            PATROCINADO
                           </span>
                         )}
                         {ann.compatibility !== undefined && ann.compatibility !== null && currentUser && !isPropertyOwner(ann.id_property) && (
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <div 
+                            style={{ 
+                              display: "flex", 
+                              alignItems: "center", 
+                              gap: "0.5rem",
+                              position: "relative"
+                            }}
+                            title={
+                              ann.compatibility >= 0.7 ? "🎉 Alta compatibilidade! Este imóvel combina muito bem com suas preferências." :
+                              ann.compatibility >= 0.4 ? "👍 Compatibilidade média. Algumas regras podem não corresponder às suas preferências." :
+                              "⚠️ Baixa compatibilidade. Muitas regras podem não atender suas expectativas."
+                            }
+                          >
                             <span
                               style={{
-                                background: ann.compatibility >= 0.7 ? "#10b981" : ann.compatibility >= 0.4 ? "#f59e0b" : "#ef4444",
+                                background: ann.compatibility >= 0.7 ? 
+                                  "linear-gradient(135deg, #10b981 0%, #059669 100%)" : 
+                                  ann.compatibility >= 0.4 ? 
+                                  "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" : 
+                                  "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
                                 color: "white",
-                                padding: "4px 12px",
+                                padding: ann.compatibility >= 0.7 ? "6px 16px" : "4px 12px",
                                 borderRadius: "20px",
-                                fontSize: "0.75rem",
+                                fontSize: ann.compatibility >= 0.7 ? "1rem" : "0.875rem",
                                 fontWeight: "bold",
                                 display: "flex",
                                 alignItems: "center",
-                                gap: "0.25rem"
+                                gap: "0.5rem",
+                                boxShadow: ann.compatibility >= 0.7 ? 
+                                  "0 4px 12px rgba(16, 185, 129, 0.4)" : 
+                                  ann.compatibility >= 0.4 ?
+                                  "0 2px 8px rgba(245, 158, 11, 0.3)" :
+                                  "0 2px 8px rgba(239, 68, 68, 0.3)",
+                                animation: ann.compatibility >= 0.7 ? "pulse 2s ease-in-out infinite" : undefined,
+                                transition: "all 0.3s ease",
+                                cursor: "help"
                               }}
-                              title={`Compatibilidade: ${ann.compatibility}%`}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.transform = "scale(1.1)";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = "scale(1)";
+                              }}
                             >
-                              <span>🎯</span>
+                              <span style={{ fontSize: ann.compatibility >= 0.7 ? "1.25rem" : "1rem" }}>
+                                {ann.compatibility >= 0.7 ? "🌟" : "🎯"}
+                              </span>
                               <span>{ann.compatibility}%</span>
+                              {ann.compatibility >= 0.7 && (
+                                <span style={{ fontSize: "0.75rem", opacity: 0.9 }}>
+                                  IDEAL!
+                                </span>
+                              )}
                             </span>
                           </div>
                         )}

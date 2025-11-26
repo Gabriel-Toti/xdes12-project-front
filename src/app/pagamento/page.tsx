@@ -154,7 +154,7 @@ export default function Pagamento() {
           <h3>Pagamento Simulado</h3>
           <p style={{ color: "#666", fontSize: "0.9rem", marginTop: "0.5rem" }}>
             {type === "boost" 
-              ? "Ativar Boost no Anúncio" 
+              ? "Patrocinar Anúncio" 
               : "Ativar Conta Premium"}
           </p>
         </div>

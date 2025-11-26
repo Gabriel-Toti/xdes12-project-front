@@ -273,10 +273,10 @@ export default function CadastroAnuncio() {
                   onChange={(e) => setBoost(e.target.checked)}
                   style={{ marginRight: "8px" }}
                 />
-                Boost (destaque no anúncio - pago)
+                Patrocinar anúncio (destaque na listagem - pago)
               </label>
               <p style={{ fontSize: "0.875rem", color: "#666", marginTop: "4px" }}>
-                Anúncios com boost aparecem primeiro na listagem
+                Anúncios patrocinados aparecem primeiro na listagem
               </p>
             </div>
 
