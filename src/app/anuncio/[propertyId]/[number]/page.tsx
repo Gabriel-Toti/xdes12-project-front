@@ -305,15 +305,17 @@ export default function VerAnuncio() {
     // Para cada preferência do usuário, verificar se há uma regra correspondente
     userPreferences.forEach(pref => {
       if (rulesMap.has(pref.name)) {
-        const propertyValue = rulesMap.get(pref.name)!;
-        const isCompatible = checkCompatibility(pref.name, pref.value, propertyValue);
-        
-        comparisons.push({
-          name: pref.name,
-          userValue: pref.value,
-          propertyValue: propertyValue,
-          compatible: isCompatible
-        });
+        const propertyValue = rulesMap.get(pref.name);
+        if (propertyValue && typeof propertyValue === 'string') {
+          const isCompatible = checkCompatibility(pref.name, pref.value, propertyValue);
+          
+          comparisons.push({
+            name: pref.name,
+            userValue: pref.value,
+            propertyValue: propertyValue,
+            compatible: isCompatible
+          });
+        }
       }
     });
 
