@@ -3,16 +3,11 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { preference, user } from "../utils/api";
 import Navbar from "../components/Navbar";
+import { getErrorMessage } from "../utils/error-handler";
 
 type ModelField = {
   type: "closed" | "location" | "schedule" | string;
   expected: string[];
-};
-
-type PreferenceEntry = {
-  name: string;
-  value: string;
-  weight: number;
 };
 
 export default function Home() {
@@ -127,7 +122,7 @@ export default function Home() {
           setFormValues(defaults);
         }
       } catch (err: any) {
-        setError(err?.message || "Erro ao carregar dados");
+        setError(getErrorMessage(err, "Erro ao carregar dados"));
       } finally {
         setLoadingModel(false);
         setLoadingPreferences(false);
@@ -246,7 +241,7 @@ export default function Home() {
       // Redirecionar para /anuncios após salvar
       router.push('/anuncios');
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao salvar preferências");
+      setError(getErrorMessage(err, "Erro ao salvar preferências"));
     } finally {
       setSubmitting(false);
     }

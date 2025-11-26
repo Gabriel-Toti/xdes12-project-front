@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { announcement, user, match, property } from "../../utils/api";
+import { announcement, property, user, match } from "@/utils/api";
 import Navbar from "../../components/Navbar";
+import { getErrorMessage } from "@/utils/error-handler";
 
 type Announcement = {
   id_property: string;
@@ -15,6 +16,7 @@ type Announcement = {
   boost: boolean | null;
   vacancies: number;
   created_at: string | null;
+  compatibility?: number;
   image_url?: string | null;
   images?: Array<{
     image_url: string;
@@ -53,7 +55,9 @@ export default function Anuncios() {
   const [matchSuccess, setMatchSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    // Carregar anúncios primeiro (sem compatibilidade)
     loadAnnouncements();
+    // Depois tentar carregar usuário (que pode recarregar anúncios com compatibilidade)
     loadCurrentUser();
   }, []);
 
@@ -66,11 +70,14 @@ export default function Anuncios() {
         loadUserMatches(),
         loadUserProperties()
       ]);
+      // Recarregar anúncios para obter compatibilidade
+      await loadAnnouncements(userData);
     } catch (err) {
       // Usuário não está autenticado, não faz nada
       setCurrentUser(null);
       setUserMatches([]);
       setUserProperties([]);
+      // Anúncios já foram carregados sem compatibilidade
     }
   };
 
@@ -94,32 +101,83 @@ export default function Anuncios() {
     }
   };
 
-  const loadAnnouncements = async () => {
+  const isPropertyOwner = (propertyId: string): boolean => {
+    if (!currentUser || !userProperties.length) return false;
+    return userProperties.some(p => p.id === propertyId);
+  };
+
+  const loadAnnouncements = async (user?: any) => {
     setLoading(true);
     setError(null);
     try {
-      // Usa a rota pública que não requer autenticação
-      const data = await announcement.listPublic();
+      // Se o usuário está logado, usa a rota autenticada para obter compatibilidade
+      // Caso contrário, usa a rota pública
+      const userToCheck = user !== undefined ? user : currentUser;
+      let data;
+      if (userToCheck) {
+        try {
+          data = await announcement.list();
+        } catch (err) {
+          // Se falhar a rota autenticada, tenta a pública
+          data = await announcement.listPublic();
+        }
+      } else {
+        data = await announcement.listPublic();
+      }
       
       // Garantir que data é um array
       const announcementsArray = Array.isArray(data) ? data : [];
       
-      // Backend já ordena por boost e data, mas garantimos aqui também
+      // O backend já ordena corretamente, mas aplicamos a mesma lógica aqui para garantir
+      // que a ordenação seja consistente mesmo se houver múltiplas chamadas
       const sorted = [...announcementsArray].sort((a, b) => {
-        const aBoost = a.boost === true ? 1 : 0;
-        const bBoost = b.boost === true ? 1 : 0;
-        if (aBoost !== bBoost) {
-          return bBoost - aBoost; // Boost primeiro
+        // Se há compatibilidade, aplicar lógica de boost
+        if (userToCheck && a.compatibility !== undefined && b.compatibility !== undefined) {
+          const aCompat = a.compatibility ?? 0;
+          const bCompat = b.compatibility ?? 0;
+          
+          const aHasBoost = a.boost === true;
+          const bHasBoost = b.boost === true;
+          
+          // Calcular diferença absoluta de compatibilidade
+          const compatDiffAbs = Math.abs(aCompat - bCompat);
+          
+          // Se a diferença é maior que 4 pontos, ordenar apenas por compatibilidade
+          if (compatDiffAbs > 4) {
+            return bCompat - aCompat; // Maior compatibilidade primeiro
+          }
+          
+          // Se a diferença é <= 4 pontos, aplicar boost
+          // Anúncios com boost aparecem antes de anúncios sem boost
+          if (aHasBoost && !bHasBoost) {
+            return -1; // A tem boost, aparece primeiro
+          }
+          if (!aHasBoost && bHasBoost) {
+            return 1; // B tem boost, aparece primeiro
+          }
+          
+          // Se ambos têm ou não têm boost, ordenar por compatibilidade
+          if (aCompat !== bCompat) {
+            return bCompat - aCompat; // Maior compatibilidade primeiro
+          }
+        } else {
+          // Se não há compatibilidade, ordenar por boost e data
+          const aBoost = a.boost === true ? 1 : 0;
+          const bBoost = b.boost === true ? 1 : 0;
+          if (aBoost !== bBoost) {
+            return bBoost - aBoost; // Boost primeiro
+          }
         }
-        // Se ambos têm ou não têm boost, ordenar por data
+        
+        // Por fim, ordenar por data (mais recentes primeiro)
         const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
         const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bDate - aDate; // Mais recentes primeiro
+        return bDate - aDate;
       });
       
       setAnnouncements(sorted);
     } catch (err: any) {
-      // Não redireciona para login na home, apenas mostra erro silencioso
+      // Não redireciona para login, apenas mostra erro
       console.error("Erro ao carregar anúncios:", err);
       setError("Não foi possível carregar os anúncios.");
     } finally {
@@ -183,7 +241,7 @@ export default function Anuncios() {
         await loadUserMatches();
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || (isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
+      setError(getErrorMessage(err, isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
     } finally {
       setMatchingIds(prev => {
         const newSet = new Set(prev);
@@ -212,7 +270,11 @@ export default function Anuncios() {
           ) : announcements.length === 0 ? (
             <div style={{ textAlign: "center", padding: "2rem" }}>
               <p>Nenhum anúncio disponível no momento.</p>
-              {!currentUser && (
+              {currentUser ? (
+                <Link href="/anuncio" className="btn btn-primary" style={{ marginTop: "1rem", color: "white" }}>
+                  Criar Primeiro Anúncio
+                </Link>
+              ) : (
                 <Link href="/login" className="btn btn-primary" style={{ marginTop: "1rem", color: "white" }}>
                   Faça login para criar anúncios
                 </Link>
@@ -259,8 +321,18 @@ export default function Anuncios() {
                     })()}
 
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
-                        <div className="card-title">{ann.title}</div>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+                        <Link
+                          href={`/anuncio/${ann.id_property}/${ann.number}`}
+                          style={{
+                            textDecoration: "none",
+                            color: "inherit"
+                          }}
+                        >
+                          <div className="card-title" style={{ cursor: "pointer", display: "inline" }}>
+                            {ann.title}
+                          </div>
+                        </Link>
                         {ann.boost && (
                           <span
                             style={{
@@ -274,6 +346,27 @@ export default function Anuncios() {
                           >
                             BOOST
                           </span>
+                        )}
+                        {ann.compatibility !== undefined && ann.compatibility !== null && currentUser && !isPropertyOwner(ann.id_property) && (
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <span
+                              style={{
+                                background: ann.compatibility >= 0.7 ? "#10b981" : ann.compatibility >= 0.4 ? "#f59e0b" : "#ef4444",
+                                color: "white",
+                                padding: "4px 12px",
+                                borderRadius: "20px",
+                                fontSize: "0.75rem",
+                                fontWeight: "bold",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.25rem"
+                              }}
+                              title={`Compatibilidade: ${ann.compatibility}%`}
+                            >
+                              <span>🎯</span>
+                              <span>{ann.compatibility}%</span>
+                            </span>
+                          </div>
                         )}
                       </div>
                       <div className="card-subtitle" style={{ marginBottom: 8 }}>
@@ -309,7 +402,6 @@ export default function Anuncios() {
                         {currentUser ? (
                           (() => {
                             // Verificar se o usuário é admin do imóvel
-                            // Primeiro tenta pela participation (se disponível), senão verifica pelas propriedades do usuário
                             const isAdmin = ann.property?.participation?.some(
                               (p: any) => p.id_user === currentUser.id && p.admin === true
                             ) || userProperties.some(p => p.id === ann.id_property);
@@ -380,7 +472,6 @@ export default function Anuncios() {
               ))}
             </div>
           )}
-
         </section>
       </main>
     </div>

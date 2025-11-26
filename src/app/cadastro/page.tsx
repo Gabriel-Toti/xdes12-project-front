@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, user, preference } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 export default function Cadastro() {
   const router = useRouter();
@@ -139,7 +140,7 @@ export default function Cadastro() {
         }, 900);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao cadastrar usuário");
+      setError(getErrorMessage(err, "Erro ao cadastrar usuário"));
     } finally {
       setLoading(false);
     }

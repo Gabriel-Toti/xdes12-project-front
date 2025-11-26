@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { announcement, property } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 export default function EditarAnuncio() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function EditarAnuncio() {
   const [images, setImages] = useState<Array<{ id: string; image_url: string }>>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const [originalBoost, setOriginalBoost] = useState(false);
 
   const maxDesc = 128;
 
@@ -41,7 +43,9 @@ export default function EditarAnuncio() {
       setTitulo(data.title || "");
       setDescricao(data.description || "");
       setValor(data.average_cost || "");
-      setBoost(data.boost === true);
+      const boostValue = data.boost === true;
+      setBoost(boostValue);
+      setOriginalBoost(boostValue);
       setVagas(data.vacancies || "");
       // Carregar imagens do anúncio com IDs
       const loadedImages = data.images?.map((img: any) => ({
@@ -55,7 +59,7 @@ export default function EditarAnuncio() {
         router.push("/login");
         return;
       }
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar anúncio");
+      setError(getErrorMessage(err, "Erro ao carregar anúncio"));
     } finally {
       setLoading(false);
     }
@@ -134,7 +138,7 @@ export default function EditarAnuncio() {
       // Limpar o input
       e.target.value = '';
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao enviar imagens");
+      setError(getErrorMessage(err, "Erro ao enviar imagens"));
     } finally {
       setUploadingImage(false);
     }
@@ -153,7 +157,7 @@ export default function EditarAnuncio() {
       setSuccess("Imagem deletada com sucesso!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao deletar imagem");
+      setError(getErrorMessage(err, "Erro ao deletar imagem"));
     } finally {
       setDeletingImageId(null);
     }
@@ -162,6 +166,12 @@ export default function EditarAnuncio() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // Se boost foi ativado (mudou de false para true), redirecionar para página de pagamento
+    if (boost && !originalBoost) {
+      router.push(`/pagamento?type=boost&propertyId=${propertyId}&number=${number}`);
+      return;
+    }
 
     setSaving(true);
     setError(null);

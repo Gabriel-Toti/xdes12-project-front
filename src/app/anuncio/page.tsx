@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { announcement, property } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 import Navbar from "@/components/Navbar";
 
 export default function CadastroAnuncio() {
@@ -47,7 +48,7 @@ export default function CadastroAnuncio() {
         return;
       }
       setIsAuthorized(false);
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar imóveis");
+      setError(getErrorMessage(err, "Erro ao carregar imóveis"));
     } finally {
       setLoadingProperties(false);
     }
@@ -97,14 +98,25 @@ export default function CadastroAnuncio() {
     setError(null);
 
     try {
-      await announcement.create({
+      // Se boost foi ativado, criar anúncio sem boost primeiro
+      // Depois redirecionar para pagamento
+      const boostValue = boost;
+      const createData = {
         title: titulo,
         description: descricao || undefined,
         average_cost: Number(valor),
-        boost: boost,
+        boost: false, // Criar sem boost primeiro
         vacancies: Number(vagas),
         id_property: imovelId
-      });
+      };
+
+      const result = await announcement.create(createData);
+
+      // Se boost foi solicitado, redirecionar para pagamento
+      if (boostValue && result && result.number) {
+        router.push(`/pagamento?type=boost&propertyId=${imovelId}&number=${result.number}`);
+        return;
+      }
 
       setSuccess("Anúncio criado com sucesso!");
       setTimeout(() => router.push("/imoveis"), 1200);

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { announcement, user, match } from "@/utils/api";
+import { getErrorMessage } from "@/utils/error-handler";
 
 function ImageCarousel({ images, title }: { images: string[]; title: string }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -193,7 +194,7 @@ export default function VerAnuncio() {
           router.push("/login");
           return;
         }
-        setError(err?.response?.data?.error || err?.message || "Erro ao carregar anúncio");
+        setError(getErrorMessage(err, "Erro ao carregar anúncio"));
       }
 
       if (userResult.status === 'fulfilled' && userResult.value) {
@@ -204,7 +205,7 @@ export default function VerAnuncio() {
         setUserMatches(matchesResult.value || []);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || "Erro ao carregar dados");
+      setError(getErrorMessage(err, "Erro ao carregar dados"));
     } finally {
       setLoading(false);
     }
@@ -258,7 +259,7 @@ export default function VerAnuncio() {
         setUserMatches(updatedMatches || []);
       }
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || (isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
+      setError(getErrorMessage(err, isMatched ? 'Erro ao remover match' : 'Erro ao registrar match'));
     } finally {
       setIsMatching(false);
     }
@@ -317,24 +318,79 @@ export default function VerAnuncio() {
     <div className="cadastro-page">
       <div className="cadastro-container">
         <div className="cadastro-header">
-          <h2>CASAR</h2>
-          <h3>{announcementData.title}</h3>
-          {announcementData.boost && (
-            <span
-              style={{
-                background: "#f59e0b",
-                color: "white",
-                padding: "4px 12px",
-                borderRadius: "4px",
-                fontSize: "0.875rem",
-                fontWeight: "bold",
-                marginTop: "0.5rem",
-                display: "inline-block"
-              }}
-            >
-              ⭐ ANÚNCIO EM DESTAQUE (BOOST)
-            </span>
-          )}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+            <div style={{ flex: 1 }}>
+              <h2>CASAR</h2>
+              <h3>{announcementData.title}</h3>
+            </div>
+            {/* Botão de Editar - aparece apenas para admins - posicionado no topo */}
+            {isAdmin && (
+              <Link
+                href={`/anuncio/${propertyId}/${number}/editar`}
+                className="btn btn-primary"
+                style={{ 
+                  color: "white",
+                  fontSize: "1rem",
+                  padding: "10px 20px",
+                  fontWeight: "600",
+                  boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+                  transition: "all 0.3s ease",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  whiteSpace: "nowrap"
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 6px 12px rgba(0, 0, 0, 0.15)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
+                }}
+              >
+                ✏️ Editar
+              </Link>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginTop: "0.5rem" }}>
+            {announcementData.boost && (
+              <span
+                style={{
+                  background: "#f59e0b",
+                  color: "white",
+                  padding: "4px 12px",
+                  borderRadius: "4px",
+                  fontSize: "0.875rem",
+                  fontWeight: "bold",
+                  display: "inline-block"
+                }}
+              >
+                ⭐ ANÚNCIO EM DESTAQUE (BOOST)
+              </span>
+            )}
+            {announcementData.compatibility !== undefined && announcementData.compatibility !== null && currentUser && !isAdmin && (
+              <div
+                style={{
+                  background: announcementData.compatibility >= 0.7 ? "#10b981" : announcementData.compatibility >= 0.4 ? "#f59e0b" : "#ef4444",
+                  color: "white",
+                  padding: "8px 16px",
+                  borderRadius: "8px",
+                  fontSize: "0.875rem",
+                  fontWeight: "bold",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem"
+                }}
+              >
+                <span style={{ fontSize: "1.25rem" }}>🎯</span>
+                <div>
+                  <div style={{ fontSize: "1rem" }}>Compatibilidade</div>
+                  <div style={{ fontSize: "1.5rem" }}>{announcementData.compatibility}%</div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="cadastro-form">
@@ -354,6 +410,55 @@ export default function VerAnuncio() {
             }
             return null;
           })()}
+          {announcementData.compatibility !== undefined && announcementData.compatibility !== null && currentUser && !isAdmin && (
+            <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem", background: announcementData.compatibility >= 0.7 ? "#f0fdf4" : announcementData.compatibility >= 0.4 ? "#fffbeb" : "#fef2f2" }}>
+              <h4 style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <span>🎯</span>
+                <span>Compatibilidade com suas Preferências</span>
+              </h4>
+              <div style={{ marginBottom: "0.5rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                  <span style={{ fontSize: "2rem", fontWeight: "bold", color: announcementData.compatibility >= 0.7 ? "#059669" : announcementData.compatibility >= 0.4 ? "#d97706" : "#dc2626" }}>
+                    {announcementData.compatibility}%
+                  </span>
+                  <span style={{ fontSize: "0.875rem", color: "#666" }}>
+                    {announcementData.compatibility >= 0.7 ? "Alta compatibilidade" : announcementData.compatibility >= 0.4 ? "Compatibilidade média" : "Baixa compatibilidade"}
+                  </span>
+                </div>
+                <div style={{ 
+                  width: "100%", 
+                  height: "24px", 
+                  background: "#e5e7eb", 
+                  borderRadius: "12px", 
+                  overflow: "hidden",
+                  position: "relative"
+                }}>
+                  <div style={{
+                    width: `${announcementData.compatibility}%`,
+                    height: "100%",
+                    background: announcementData.compatibility >= 0.7 ? "#10b981" : announcementData.compatibility >= 0.4 ? "#f59e0b" : "#ef4444",
+                    borderRadius: "12px",
+                    transition: "width 0.5s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    paddingRight: "8px"
+                  }}>
+                    {announcementData.compatibility >= 0.5 && (
+                      <span style={{ color: "white", fontSize: "0.75rem", fontWeight: "bold" }}>
+                        {announcementData.compatibility}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <p style={{ fontSize: "0.875rem", color: "#666", margin: 0 }}>
+                Este anúncio foi classificado com base na compatibilidade entre suas preferências e as regras do imóvel, 
+                {announcementData.compatibility >= 0.7 ? " mostrando uma excelente correspondência!" : announcementData.compatibility >= 0.4 ? " indicando uma correspondência moderada." : " indicando uma correspondência limitada."}
+              </p>
+            </div>
+          )}
+
           <div className="card" style={{ padding: "1.5rem", marginBottom: "1.5rem" }}>
             <h4 style={{ marginBottom: "1rem" }}>Informações do Anúncio</h4>
             {announcementData.description && (
@@ -455,17 +560,6 @@ export default function VerAnuncio() {
                   </button>
                 )}
               </>
-            )}
-            
-            {/* Botão de Editar - aparece apenas para admins */}
-            {isAdmin && (
-              <Link
-                href={`/anuncio/${propertyId}/${number}/editar`}
-                className="btn btn-primary"
-                style={{ color: "white" }}
-              >
-                Editar Anúncio
-              </Link>
             )}
             
             <button

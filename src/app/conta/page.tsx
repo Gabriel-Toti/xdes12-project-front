@@ -145,7 +145,24 @@ export default function Conta() {
                                         {data && Object.entries(data).map(([key, value]) => (
                                             <tr key={key} className="px-5">
                                                 <th className="text-left px-10">{key}</th>
-                                                <td>{value}</td>
+                                                <td>
+                                                    {value}
+                                                    {key === "Premium" && value === "Não" && (
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-primary"
+                                                            onClick={() => router.push("/pagamento?type=premium")}
+                                                            style={{ 
+                                                                marginLeft: "1rem", 
+                                                                padding: "4px 12px",
+                                                                fontSize: "0.875rem",
+                                                                color: "white"
+                                                            }}
+                                                        >
+                                                            Ativar Premium
+                                                        </button>
+                                                    )}
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
