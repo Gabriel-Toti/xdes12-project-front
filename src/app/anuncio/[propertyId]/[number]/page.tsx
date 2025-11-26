@@ -288,19 +288,22 @@ export default function VerAnuncio() {
 
   // Função para comparar preferências com regras
   const comparePreferencesWithRules = () => {
-    if (!userPreferences || userPreferences.length === 0 || !property || !property.rule || property.rule.length === 0) {
+    if (!userPreferences || userPreferences.length === 0) {
       return null;
     }
 
     const comparisons: Array<{
       name: string;
       userValue: string | null;
-      propertyValue: string;
+      propertyValue: string | null;
       compatible: boolean;
+      hasPropertyRule: boolean;
     }> = [];
 
     // Mapear regras do imóvel por nome
-    const rulesMap = new Map(property.rule.map((r: any) => [r.attribute.name, r.attribute.value]));
+    const rulesMap = new Map(
+      property?.rule?.map((r: any) => [r.attribute.name, r.attribute.value]) || []
+    );
 
     // Para cada preferência do usuário, verificar se há uma regra correspondente
     userPreferences.forEach(pref => {
@@ -313,23 +316,36 @@ export default function VerAnuncio() {
             name: pref.name,
             userValue: pref.value,
             propertyValue: propertyValue,
-            compatible: isCompatible
+            compatible: isCompatible,
+            hasPropertyRule: true
           });
         }
+      } else {
+        // Preferência do usuário sem regra correspondente no imóvel
+        comparisons.push({
+          name: pref.name,
+          userValue: pref.value,
+          propertyValue: null,
+          compatible: false,
+          hasPropertyRule: false
+        });
       }
     });
 
     // Adicionar regras que não têm preferência correspondente
-    property.rule.forEach((r: any) => {
-      if (!userPreferences.some(p => p.name === r.attribute.name)) {
-        comparisons.push({
-          name: r.attribute.name,
-          userValue: null,
-          propertyValue: r.attribute.value,
-          compatible: false
-        });
-      }
-    });
+    if (property?.rule) {
+      property.rule.forEach((r: any) => {
+        if (!userPreferences.some(p => p.name === r.attribute.name)) {
+          comparisons.push({
+            name: r.attribute.name,
+            userValue: null,
+            propertyValue: r.attribute.value,
+            compatible: false,
+            hasPropertyRule: true
+          });
+        }
+      });
+    }
 
     return comparisons;
   };
@@ -588,7 +604,10 @@ export default function VerAnuncio() {
             const comparisons = comparePreferencesWithRules();
             if (!comparisons || comparisons.length === 0) return null;
 
-            const compatibleCount = comparisons.filter(c => c.compatible).length;
+            const compatibleCount = comparisons.filter(c => c.compatible && c.hasPropertyRule && c.userValue).length;
+            const incompatibleCount = comparisons.filter(c => !c.compatible && c.hasPropertyRule && c.userValue).length;
+            const noPropertyRuleCount = comparisons.filter(c => !c.hasPropertyRule && c.userValue).length;
+            const noUserPrefCount = comparisons.filter(c => !c.userValue && c.hasPropertyRule).length;
             const totalCount = comparisons.length;
 
             return (
@@ -635,76 +654,139 @@ export default function VerAnuncio() {
                       transition: "width 0.5s ease"
                     }} />
                   </div>
+
+                  {/* Resumo detalhado das categorias */}
+                  <div style={{ 
+                    marginTop: "1rem", 
+                    padding: "0.75rem", 
+                    background: "white", 
+                    borderRadius: "6px",
+                    fontSize: "0.875rem",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: "0.5rem"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "1.25rem" }}>✅</span>
+                      <span><strong>{compatibleCount}</strong> compatíveis</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "1.25rem" }}>❌</span>
+                      <span><strong>{incompatibleCount}</strong> incompatíveis</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "1.25rem" }}>⚠️</span>
+                      <span><strong>{noPropertyRuleCount}</strong> sem regra no imóvel</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "1.25rem" }}>ℹ️</span>
+                      <span><strong>{noUserPrefCount}</strong> sem sua preferência</span>
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  {comparisons.map((comp, idx) => (
-                    <div 
-                      key={idx} 
-                      style={{ 
-                        padding: "1rem",
-                        background: comp.compatible ? "#f0fdf4" : "#fef2f2",
-                        borderRadius: "8px",
-                        border: `2px solid ${comp.compatible ? "#10b981" : "#ef4444"}`
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                        <div style={{ 
-                          fontSize: "1.5rem",
-                          flexShrink: 0,
-                          marginTop: "-2px"
-                        }}>
-                          {comp.compatible ? "✅" : "❌"}
-                        </div>
-                        <div style={{ flex: 1 }}>
+                  {comparisons.map((comp, idx) => {
+                    // Determinar o tipo de comparação
+                    const isCompatible = comp.compatible && comp.hasPropertyRule && comp.userValue;
+                    const isIncompatible = !comp.compatible && comp.hasPropertyRule && comp.userValue;
+                    const noPropertyRule = !comp.hasPropertyRule && comp.userValue;
+                    const noUserPreference = !comp.userValue && comp.hasPropertyRule;
+
+                    // Definir cores e ícones baseado no tipo
+                    let bgColor = "#f9fafb";
+                    let borderColor = "#e5e7eb";
+                    let icon = "ℹ️";
+                    let titleColor = "#666";
+                    let message = "";
+
+                    if (isCompatible) {
+                      bgColor = "#f0fdf4";
+                      borderColor = "#10b981";
+                      icon = "✅";
+                      titleColor = "#065f46";
+                      message = "✓ Este critério está de acordo com suas preferências";
+                    } else if (isIncompatible) {
+                      bgColor = "#fef2f2";
+                      borderColor = "#ef4444";
+                      icon = "❌";
+                      titleColor = "#991b1b";
+                      message = "⚠️ Este critério pode não atender suas expectativas";
+                    } else if (noPropertyRule) {
+                      bgColor = "#fffbeb";
+                      borderColor = "#f59e0b";
+                      icon = "⚠️";
+                      titleColor = "#92400e";
+                      message = "ℹ️ O imóvel não definiu uma regra específica para este critério";
+                    } else if (noUserPreference) {
+                      bgColor = "#f3f4f6";
+                      borderColor = "#9ca3af";
+                      icon = "ℹ️";
+                      titleColor = "#4b5563";
+                      message = "ℹ️ Você não definiu uma preferência para este critério";
+                    }
+
+                    return (
+                      <div 
+                        key={idx} 
+                        style={{ 
+                          padding: "1rem",
+                          background: bgColor,
+                          borderRadius: "8px",
+                          border: `2px solid ${borderColor}`
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
                           <div style={{ 
-                            fontWeight: "bold", 
-                            marginBottom: "0.5rem",
-                            color: comp.compatible ? "#065f46" : "#991b1b"
+                            fontSize: "1.5rem",
+                            flexShrink: 0,
+                            marginTop: "-2px"
                           }}>
-                            {comp.name}
+                            {icon}
                           </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize: "0.875rem" }}>
-                            <div>
-                              <div style={{ color: "#666", marginBottom: "0.25rem" }}>Sua preferência:</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ 
+                              fontWeight: "bold", 
+                              marginBottom: "0.5rem",
+                              color: titleColor
+                            }}>
+                              {comp.name}
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", fontSize: "0.875rem" }}>
+                              <div>
+                                <div style={{ color: "#666", marginBottom: "0.25rem" }}>Sua preferência:</div>
+                                <div style={{ 
+                                  fontWeight: "600",
+                                  color: comp.userValue ? "#111" : "#999"
+                                }}>
+                                  {comp.userValue || "Não definida"}
+                                </div>
+                              </div>
+                              <div>
+                                <div style={{ color: "#666", marginBottom: "0.25rem" }}>Regra do imóvel:</div>
+                                <div style={{ 
+                                  fontWeight: "600",
+                                  color: comp.propertyValue ? "#111" : "#999"
+                                }}>
+                                  {comp.propertyValue || "Não definida"}
+                                </div>
+                              </div>
+                            </div>
+                            {message && (
                               <div style={{ 
-                                fontWeight: "600",
-                                color: comp.userValue ? "#111" : "#999"
+                                marginTop: "0.5rem", 
+                                fontSize: "0.75rem", 
+                                color: titleColor,
+                                fontStyle: "italic"
                               }}>
-                                {comp.userValue || "Não definida"}
+                                {message}
                               </div>
-                            </div>
-                            <div>
-                              <div style={{ color: "#666", marginBottom: "0.25rem" }}>Regra do imóvel:</div>
-                              <div style={{ fontWeight: "600" }}>
-                                {comp.propertyValue}
-                              </div>
-                            </div>
+                            )}
                           </div>
-                          {!comp.compatible && comp.userValue && (
-                            <div style={{ 
-                              marginTop: "0.5rem", 
-                              fontSize: "0.75rem", 
-                              color: "#991b1b",
-                              fontStyle: "italic"
-                            }}>
-                              ⚠️ Este critério pode não atender suas expectativas
-                            </div>
-                          )}
-                          {comp.compatible && (
-                            <div style={{ 
-                              marginTop: "0.5rem", 
-                              fontSize: "0.75rem", 
-                              color: "#065f46",
-                              fontStyle: "italic"
-                            }}>
-                              ✓ Este critério está de acordo com suas preferências
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
