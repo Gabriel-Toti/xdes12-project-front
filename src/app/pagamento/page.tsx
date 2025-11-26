@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { payment } from "@/utils/api";
 import { getErrorMessage } from "@/utils/error-handler";
 
+export const dynamic = 'force-dynamic';
+
 export default function Pagamento() {
   const router = useRouter();
   const searchParams = useSearchParams();

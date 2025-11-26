@@ -146,7 +146,7 @@ export default function Conta() {
                                             <tr key={key} className="px-5">
                                                 <th className="text-left px-10">{key}</th>
                                                 <td>
-                                                    {value}
+                                                    {String(value)}
                                                     {key === "Premium" && value === "Não" && (
                                                         <button
                                                             type="button"

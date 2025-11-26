@@ -6,6 +6,8 @@ import type { LoginDto } from "../../types/index";
 import { user, preference } from "../../utils/api";
 import { getErrorMessage } from "../../utils/error-handler";
 
+export const dynamic = 'force-dynamic';
+
 export default function Login() {
   const router = useRouter();
   const searchParams = useSearchParams();

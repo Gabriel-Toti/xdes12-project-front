@@ -113,38 +113,6 @@ export default function CadastroImovel() {
     setRegras(updated);
   };
 
-  const addScheduleEntry = (index: number, start: string, end: string) => {
-    const rule = regras[index];
-    if (!rule) return;
-    
-    const schedule = parseScheduleValue(rule.value || "");
-    const newEntries = [...schedule, { start, end }];
-    const formattedValue = newEntries
-      .map((entry: { start: string; end: string }) => 
-        `${formatScheduleTime(entry.start)}-${formatScheduleTime(entry.end)}`
-      )
-      .join("; ");
-    
-    updateRule(index, "value", formattedValue);
-  };
-
-  const removeScheduleEntry = (index: number, entryIndex: number) => {
-    const rule = regras[index];
-    if (!rule) return;
-    
-    const schedule = parseScheduleValue(rule.value || "");
-    schedule.splice(entryIndex, 1);
-    const formattedValue = schedule.length > 0
-      ? schedule
-          .map((entry: { start: string; end: string }) => 
-            `${formatScheduleTime(entry.start)}-${formatScheduleTime(entry.end)}`
-          )
-          .join("; ")
-      : "";
-    
-    updateRule(index, "value", formattedValue);
-  };
-
   const validate = () => {
     if (!nome.trim()) {
       setError("Nome do imóvel é obrigatório");
@@ -449,7 +417,7 @@ export default function CadastroImovel() {
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => removeScheduleEntry(index, idx)}
+                                  onClick={() => removeScheduleEntry(r.name, idx)}
                                   style={{
                                     padding: "4px 8px",
                                     background: "#ef4444",
@@ -489,7 +457,7 @@ export default function CadastroImovel() {
                                 const startInput = document.getElementById(`schedule-${index}-start`) as HTMLInputElement;
                                 const endInput = document.getElementById(`schedule-${index}-end`) as HTMLInputElement;
                                 if (startInput?.value && endInput?.value) {
-                                  addScheduleEntry(index, startInput.value, endInput.value);
+                                  addScheduleEntry(r.name, startInput.value, endInput.value);
                                   startInput.value = "";
                                   endInput.value = "";
                                 }

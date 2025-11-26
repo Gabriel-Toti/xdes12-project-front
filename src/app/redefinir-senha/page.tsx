@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { user } from "@/utils/api";
 import { getErrorMessage } from "@/utils/error-handler";
 
+export const dynamic = 'force-dynamic';
+
 export default function RedefinirSenha() {
   const router = useRouter();
   const searchParams = useSearchParams();

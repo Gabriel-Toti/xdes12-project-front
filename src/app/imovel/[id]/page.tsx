@@ -91,32 +91,6 @@ export default function EditarImovel() {
     handleUpdateRule(ruleName, formattedValue);
   };
 
-  // Parse schedule value from backend format "HHh-HHh; HHh-HHh" to entries array
-  const parseScheduleValue = (value: string): Array<{ start: string; end: string }> => {
-    if (!value) return [];
-    const intervals = value.split(";").map(s => s.trim());
-    return intervals.map(interval => {
-      const [start, end] = interval.split("-").map(s => s.trim());
-      // Convert "22h" or "22h30" to "22:00" or "22:30"
-      const parseTime = (timeStr: string): string => {
-        const match = timeStr.match(/(\d{1,2})h(\d{2})?/);
-        if (!match) return "";
-        const hour = match[1].padStart(2, "0");
-        const minute = match[2] || "00";
-        return `${hour}:${minute}`;
-      };
-      return { start: parseTime(start), end: parseTime(end) };
-    }).filter(e => e.start && e.end);
-  };
-
-  // Format schedule entries to backend format
-  const formatScheduleTime = (time: string): string => {
-    if (!time) return "";
-    const [hh = "00", mm = "00"] = time.split(":");
-    const normalizedHour = hh.padStart(2, "0");
-    return !mm || mm === "00" ? `${normalizedHour}h` : `${normalizedHour}h${mm}`;
-  };
-
   useEffect(() => {
     if (id) {
       loadModel();
@@ -200,38 +174,6 @@ export default function EditarImovel() {
     } catch (err: any) {
       setError(getErrorMessage(err, "Erro ao atualizar regra"));
     }
-  };
-
-  const addScheduleEntry = (ruleName: string, start: string, end: string) => {
-    const rule = rules.find(r => r.name === ruleName);
-    if (!rule) return;
-    
-    const schedule = parseScheduleValue(rule.value || "");
-    const newEntries = [...schedule, { start, end }];
-    const formattedValue = newEntries
-      .map((entry: { start: string; end: string }) => 
-        `${formatScheduleTime(entry.start)}-${formatScheduleTime(entry.end)}`
-      )
-      .join("; ");
-    
-    handleUpdateRule(ruleName, formattedValue);
-  };
-
-  const removeScheduleEntry = (ruleName: string, entryIndex: number) => {
-    const rule = rules.find(r => r.name === ruleName);
-    if (!rule) return;
-    
-    const schedule = parseScheduleValue(rule.value || "");
-    schedule.splice(entryIndex, 1);
-    const formattedValue = schedule.length > 0
-      ? schedule
-          .map((entry: { start: string; end: string }) => 
-            `${formatScheduleTime(entry.start)}-${formatScheduleTime(entry.end)}`
-          )
-          .join("; ")
-      : "";
-    
-    handleUpdateRule(ruleName, formattedValue);
   };
 
   const handleDeleteRule = async (name: string) => {
@@ -716,118 +658,7 @@ export default function EditarImovel() {
                             placeholder="Valor da regra"
                           />
                         )
-                      ) : fieldConfig?.type === "location" ? (
-                        <input
-                          type="number"
-                          min={0}
-                          step={0.1}
-                          className="form-input"
-                          value={r.value}
-                          onChange={(e) => {
-                            const newValue = e.target.value === "" ? "" : e.target.value;
-                            setRules(rules.map(rule => rule.name === r.name ? { ...rule, value: newValue } : rule));
-                          }}
-                          onBlur={() => handleUpdateRule(r.name, r.value)}
-                          placeholder="Raio máximo em km (ex: 5)"
-                        />
-                      ) : fieldConfig?.type === "schedule" ? (
-                        <div>
-                          <div style={{ marginBottom: 12 }}>
-                            {(() => {
-                              const scheduleEntries = parseScheduleValue(r.value);
-                              return scheduleEntries.length > 0 && (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-                                  {scheduleEntries.map((entry: { start: string; end: string }, idx: number) => (
-                                    <div
-                                      key={idx}
-                                      style={{
-                                        display: "flex",
-                                        gap: 8,
-                                        alignItems: "center",
-                                        padding: "8px",
-                                        background: "#f9fafb",
-                                        borderRadius: "4px"
-                                      }}
-                                    >
-                                      <span style={{ flex: 1 }}>
-                                        {formatScheduleTime(entry.start)} - {formatScheduleTime(entry.end)}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeScheduleEntry(r.name, idx)}
-                                        style={{
-                                          padding: "4px 8px",
-                                          background: "#ef4444",
-                                          color: "white",
-                                          border: "none",
-                                          borderRadius: "4px",
-                                          cursor: "pointer"
-                                        }}
-                                      >
-                                        Remover
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              );
-                            })()}
-                            <div style={{ display: "flex", gap: 12 }}>
-                              <div style={{ flex: 1 }}>
-                                <label className="form-label">Horário de Início</label>
-                                <input
-                                  type="time"
-                                  className="form-input"
-                                  id={`${r.name}-start`}
-                                />
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <label className="form-label">Horário de Fim</label>
-                                <input
-                                  type="time"
-                                  className="form-input"
-                                  id={`${r.name}-end`}
-                                />
-                              </div>
-                              <div style={{ display: "flex", alignItems: "flex-end" }}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const startInput = document.getElementById(`${r.name}-start`) as HTMLInputElement;
-                                    const endInput = document.getElementById(`${r.name}-end`) as HTMLInputElement;
-                                    if (startInput?.value && endInput?.value) {
-                                      addScheduleEntry(r.name, startInput.value, endInput.value);
-                                      startInput.value = "";
-                                      endInput.value = "";
-                                    }
-                                  }}
-                                  style={{
-                                    padding: "8px 16px",
-                                    background: "#059669",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "4px",
-                                    cursor: "pointer"
-                                  }}
-                                >
-                                  Adicionar
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={r.value}
-                          onChange={(e) => {
-                            const newValue = e.target.value;
-                            setRules(rules.map(rule => rule.name === r.name ? { ...rule, value: newValue } : rule));
-                          }}
-                          onBlur={() => handleUpdateRule(r.name, r.value)}
-                          placeholder="Valor da regra"
-                        />
-                      )}
+                      ) : null}
                     </div>
                   );
                 })}
